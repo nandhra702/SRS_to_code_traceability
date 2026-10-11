@@ -1,0 +1,16 @@
+# traceability package — additional dependencies
+# (pydantic, torch, transformers already present in the venv)
+
+# Local embedding — no AI service, model cached in ~/.cache/huggingface
+sentence-transformers>=3.0.0
+
+# PostgreSQL driver
+psycopg2-binary>=2.9.9
+
+# pgvector Python adapter
+pgvector>=0.3.0
+
+# Testing
+pytest>=8.0.0
+pytest-mock>=3.14.0
+numpy>=1.23.5          # already in venv; listed for completeness
