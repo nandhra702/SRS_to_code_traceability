@@ -1,58 +1,181 @@
 """
-Pipeline — orchestrates the full load → embed → store flow.
+Pipeline — orchestrates load → embed → store.
 
-Steps
------
-1. Load DocAgent dependency graph (legacy or V1 JSON)
-2. Load SRS requirements JSON
-3. Resolve embedding dimension from the local sentence-transformers model
-4. Initialise schema (idempotent — safe to call repeatedly)
-5. Record schema migration version
-6. Upsert SRS document record, then requirements with embeddings
-7. Upsert code components with repo identity and embeddings
-8. Upsert docstrings (original only at ingest time; generated added later)
-9. Upsert typed relationships
-10. Optionally build IVFFlat ANN indexes
+ingest_srs()           one SRS output file  → document + requirements
+ingest_graph()         one DocAgent graph   → repository + components +
+                       docstrings + typed relationships
+run()                  both of the above
+rebuild_embeddings()   re-embed rows whose vector is missing, was made by a
+                       different model version, or whose text has changed
 
-Re-running the pipeline on the same inputs is safe — all writes are
-ON CONFLICT DO UPDATE (idempotent).
+Each ingest is a single database transaction: it either fully succeeds or
+leaves the database untouched.  Re-running on the same inputs is idempotent.
+Every ingest returns a report dict (counts, skipped empty texts, truncated
+texts, skipped relationships) so nothing is dropped silently.
 """
 
 from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, Optional, Tuple
 
 from .config import TraceabilityConfig
 from .embedder import Embedder
-from .loader import GraphLoader, SRSLoader
-from .schema import SCHEMA_VERSION
+from .loader import GraphLoader, SRSLoader, read_post_run_docstrings
 from .store import Store
+from .texts import component_code_text, docstring_text, requirement_text
 
 logger = logging.getLogger(__name__)
+
+Report = Dict[str, Any]
 
 
 class Pipeline:
     """
-    Orchestrates the full traceability ingestion flow.
-
     Usage::
 
-        from traceability import Pipeline, TraceabilityConfig
-
         cfg = TraceabilityConfig()          # reads env vars
-        Pipeline(cfg).run(
-            graph_path="…/raw_test_repo_simple_dependency_graph.json",
-            srs_path="…/Basic_SRS_Document_requirements.txt",
-        )
+        p = Pipeline(cfg)
+        p.ingest_srs("…/Basic_SRS_Document_requirements.txt")
+        p.ingest_graph("…/raw_test_repo_simple_dependency_graph.json",
+                       source_root="…/raw_test_repo_simple")
     """
 
     def __init__(self, config: Optional[TraceabilityConfig] = None) -> None:
         self._cfg = config or TraceabilityConfig()
+        self._embedder: Optional[Embedder] = None
 
     # ------------------------------------------------------------------
-    # Main entry point
+    # SRS
+    # ------------------------------------------------------------------
+
+    def ingest_srs(
+        self,
+        srs_path: str | Path,
+        *,
+        document_id: Optional[str] = None,
+        embed: bool = True,
+    ) -> Report:
+        """Load an SRS Agent output file into the database."""
+        srs = SRSLoader(srs_path).load()
+        doc_record = srs.document_record(document_id)
+        logger.info("SRS loaded: %d requirements (%s).",
+                    len(srs.requirements), doc_record["document_id"])
+
+        report: Report = {"document_id": doc_record["document_id"],
+                          "requirements": len(srs.requirements)}
+        embeddings = {}
+        if embed:
+            embedder = self._get_embedder()
+            embeddings = embedder.embed_batch(
+                {r["requirement_id"]: requirement_text(r) for r in srs.requirements}
+            )
+            report["embedded"] = len(embeddings)
+            report["skipped_empty_text"] = list(embedder.skipped_empty)
+            report["truncated_text"] = list(embedder.truncated)
+
+        with Store(self._cfg) as store:
+            store.init_schema(self._resolve_dim(store, embed))
+            with store.transaction():
+                doc_pk = store.upsert_document(doc_record)
+                store.upsert_requirements(doc_pk, srs.requirements, embeddings or None)
+        report["document_pk"] = doc_pk
+        logger.info("SRS ingest report: %s", report)
+        return report
+
+    # ------------------------------------------------------------------
+    # DocAgent graph
+    # ------------------------------------------------------------------
+
+    def ingest_graph(
+        self,
+        graph_path: str | Path,
+        *,
+        repo_id: Optional[str] = None,
+        repo_path: Optional[str] = None,
+        repo_snapshot: Optional[str] = None,
+        source_root: Optional[str | Path] = None,
+        embed: bool = True,
+    ) -> Report:
+        """
+        Load a DocAgent dependency graph into the database.
+
+        Args:
+            repo_id:       Logical repository name (default: graph file stem).
+            repo_path:     Repository path, stored for identity.
+            repo_snapshot: Git commit SHA / tag at parse time.
+            source_root:   The repository *after* DocAgent's generation run.
+                           When given, docstrings DocAgent wrote are recovered
+                           as 'generated' records (the graph JSON is saved
+                           before generation and never contains them).
+            embed:         Compute embeddings (False: schema/data only).
+        """
+        graph = GraphLoader(graph_path).load()
+        comps = graph.components
+        post_run = read_post_run_docstrings(comps, source_root) if source_root else None
+        docstrings = graph.docstring_records(post_run)
+        logger.info("%r; %d docstring record(s).", graph, len(docstrings))
+
+        report: Report = {
+            "repo_id": repo_id or graph.default_repo_id(),
+            "graph_format": graph.format,
+            "components": len(comps),
+            "docstrings": {
+                "existing":  sum(d["kind"] == "existing" for d in docstrings),
+                "generated": sum(d["kind"] == "generated" for d in docstrings),
+            },
+            "malformed_relationships": graph.malformed_relationships,
+        }
+        if graph.format == "legacy":
+            report["warning"] = ("Legacy graph: no source code, signatures or typed "
+                                 "relationships; code embeddings are skipped.")
+        if source_root is not None:
+            report["post_run_components_located"] = len(post_run)
+
+        code_emb, doc_emb = {}, {}
+        if embed:
+            embedder = self._get_embedder()
+            max_chars = self._cfg.embed_code_max_chars
+            code_emb = embedder.embed_batch(
+                {cid: component_code_text(c, max_chars) for cid, c in comps.items()}
+            )
+            report["code_embedded"] = len(code_emb)
+            report["code_skipped_empty_text"] = list(embedder.skipped_empty)
+            report["code_truncated_text"] = list(embedder.truncated)
+            doc_emb = embedder.embed_batch({
+                (d["component_id"], d["kind"]): docstring_text(comps[d["component_id"]], d["content"])
+                for d in docstrings
+            })
+            report["docstrings_embedded"] = len(doc_emb)
+            report["docstring_truncated_text"] = [list(k) for k in embedder.truncated]
+
+        with Store(self._cfg) as store:
+            store.init_schema(self._resolve_dim(store, embed))
+            with store.transaction():
+                repo_pk = store.upsert_repository({
+                    "repo_id":       report["repo_id"],
+                    "repo_path":     repo_path,
+                    "repo_snapshot": repo_snapshot,
+                    "graph_path":    str(Path(graph_path).resolve()),
+                    "graph_format":  graph.format,
+                })
+                comp_pks = store.upsert_components(
+                    repo_pk, list(comps.values()), code_emb or None
+                )
+                store.upsert_docstrings(
+                    comp_pks, docstrings, doc_emb or None,
+                    observed_kinds=("existing", "generated") if source_root else ("existing",),
+                )
+                inserted, skipped = store.replace_relationships(
+                    repo_pk, comp_pks, graph.relationships
+                )
+        report.update(repo_pk=repo_pk, relationships=inserted, relationships_skipped=skipped)
+        logger.info("Graph ingest report: %s", report)
+        return report
+
+    # ------------------------------------------------------------------
+    # Both
     # ------------------------------------------------------------------
 
     def run(
@@ -61,152 +184,98 @@ class Pipeline:
         srs_path: str | Path,
         *,
         embed: bool = True,
+        repo_id: Optional[str] = None,
         repo_path: Optional[str] = None,
         repo_snapshot: Optional[str] = None,
+        source_root: Optional[str | Path] = None,
+        document_id: Optional[str] = None,
         build_vector_indexes: bool = False,
-    ) -> None:
-        """
-        Execute the full ingestion pipeline.
-
-        Args:
-            graph_path:           DocAgent dependency graph JSON path.
-            srs_path:             SRS Agent output JSON path.
-            embed:                Compute and store embeddings (True by default).
-                                  Set False for schema-only or dry-run modes.
-            repo_path:            Absolute path to the analysed repository
-                                  (stored for snapshot identity).
-            repo_snapshot:        Git commit SHA or tag at parse time.
-            build_vector_indexes: Build IVFFlat indexes after loading.
-                                  Only useful once the table has enough rows.
-        """
-        # Step 1 — Load
-        logger.info("Loading dependency graph: %s", graph_path)
-        graph = GraphLoader(graph_path).load()
-        logger.info(
-            "Graph loaded: %d components, %d relationships.",
-            len(graph.components), len(graph.relationships),
-        )
-
-        logger.info("Loading SRS requirements: %s", srs_path)
-        srs = SRSLoader(srs_path).load()
-        logger.info("SRS loaded: %d requirements.", len(srs.requirements))
-
-        # Step 2 — Resolve embed dim and compute embeddings
-        comp_embeddings = {}
-        req_embeddings  = {}
-        embed_dim: int
-
-        if embed:
-            embedder  = Embedder(self._cfg)
-            embed_dim = embedder.dim
-            logger.info("Embedding dimension: %d (model=%s)", embed_dim, embedder.model_name)
-
-            logger.info("Embedding %d code components…", len(graph.components))
-            comp_embeddings = embedder.embed_batch(graph.as_embedding_texts())
-
-            logger.info("Embedding %d requirements…", len(srs.requirements))
-            req_embeddings = embedder.embed_batch(srs.as_embedding_texts())
-        else:
-            embed_dim = self._cfg.embed_dim or 384
-            logger.info("Embedding disabled; using embed_dim=%d for schema.", embed_dim)
-
-        # Step 3 — Persist
-        with Store(self._cfg) as store:
-            store.init_schema(embed_dim)
-            store.record_migration(SCHEMA_VERSION, "Phase 1 initial schema")
-
-            # SRS document
-            doc_record = srs.document_record()
-            doc_pk = store.upsert_document(doc_record)
-
-            # Requirements
-            store.upsert_requirements(
-                doc_pk,
-                srs.requirements,
-                req_embeddings or None,
-            )
-
-            # Components
-            store.upsert_components(
-                list(graph.components.values()),
-                comp_embeddings or None,
-                repo_path=repo_path,
-                repo_snapshot=repo_snapshot,
-            )
-
-            # Docstrings — ingest original docstrings from graph at this stage
-            for comp in graph.components.values():
-                if comp.get("has_docstring") and comp.get("docstring", "").strip():
-                    store.upsert_docstrings(
-                        comp["id"],
-                        original=comp["docstring"],
-                    )
-
-            # Relationships
-            inserted, skipped = store.upsert_relationships(graph.relationships)
-            logger.info(
-                "Relationships: %d inserted, %d skipped.", inserted, skipped
-            )
-
-            if build_vector_indexes:
+    ) -> Dict[str, Report]:
+        """Ingest a graph and an SRS file (two independent transactions)."""
+        reports = {
+            "graph": self.ingest_graph(
+                graph_path, repo_id=repo_id, repo_path=repo_path,
+                repo_snapshot=repo_snapshot, source_root=source_root, embed=embed,
+            ),
+            "srs": self.ingest_srs(srs_path, document_id=document_id, embed=embed),
+        }
+        if build_vector_indexes:
+            with Store(self._cfg) as store:
                 store.build_vector_indexes()
-
-        logger.info("Pipeline complete.")
+        return reports
 
     # ------------------------------------------------------------------
     # Rebuild stale embeddings
     # ------------------------------------------------------------------
 
-    def rebuild_embeddings(self) -> None:
+    def rebuild_embeddings(self) -> Report:
         """
-        Re-embed all requirements and components whose embedding is NULL
-        or was produced with a different model version.
-
-        Safe to run repeatedly — only stale rows are touched.
+        Re-embed every current row whose vector is missing, was produced by a
+        different model version, or whose embedding text no longer hashes to
+        the stored embed_text_hash.  Rows whose text is now empty have their
+        vector cleared.  Safe to run repeatedly — fresh rows are untouched.
         """
-        embedder = Embedder(self._cfg)
-        model_version = embedder.model_version
-
+        embedder = self._get_embedder()
+        version = embedder.model_version
+        max_chars = self._cfg.embed_code_max_chars
+        builders = {
+            "requirement": ("req_pk", requirement_text),
+            "component":   ("comp_pk", lambda r: component_code_text(r, max_chars)),
+            "docstring":   ("docstring_pk", lambda r: docstring_text(r, r["content"])),
+        }
+        report: Report = {}
         with Store(self._cfg) as store:
-            # Requirements
-            stale_reqs = store.get_stale_requirement_embeddings(model_version)
-            logger.info(
-                "Rebuilding embeddings for %d stale requirement(s).", len(stale_reqs)
-            )
-            for row in stale_reqs:
-                text = " ".join(filter(None, [
-                    row.get("retrieval_text", ""),
-                    row.get("title", ""),
-                    row.get("normalized_text", ""),
-                ]))
-                result = embedder.embed(text)
-                store.update_requirement_embedding(row["req_pk"], result)
-
-            # Components
-            stale_comps = store.get_stale_component_embeddings(model_version)
-            logger.info(
-                "Rebuilding embeddings for %d stale component(s).", len(stale_comps)
-            )
-            for row in stale_comps:
-                parts = [
-                    row.get("signature") or "",
-                    row.get("docstring") or "",
-                    (row.get("source_code") or "")[:2000],
-                ]
-                text = "\n\n".join(p for p in parts if p)
-                result = embedder.embed(text)
-                store.update_component_embedding(row["component_id"], result)
-
-        logger.info("Embedding rebuild complete.")
+            store.init_schema(embedder.dim)
+            for entity, (pk_col, build) in builders.items():
+                stale: Dict[int, str] = {}
+                cleared = 0
+                for row in store.get_embedding_rows(entity):
+                    text = build(row)
+                    if not text.strip():
+                        if row["has_embedding"]:
+                            store.update_embedding(entity, row[pk_col], None)
+                            cleared += 1
+                        continue
+                    if (not row["has_embedding"]
+                            or row["embed_model_version"] != version
+                            or row["embed_text_hash"] != Embedder.text_hash(text)):
+                        stale[row[pk_col]] = text
+                results = embedder.embed_batch(stale)
+                with store.transaction():
+                    for pk, result in results.items():
+                        store.update_embedding(entity, pk, result)
+                report[entity] = {"rebuilt": len(results), "cleared": cleared}
+        logger.info("Embedding rebuild report: %s", report)
+        return report
 
     # ------------------------------------------------------------------
-    # Convenience: load without touching the DB
+    # Helpers
     # ------------------------------------------------------------------
 
     def load_only(
-        self,
-        graph_path: str | Path,
-        srs_path: str | Path,
-    ) -> tuple[GraphLoader, SRSLoader]:
+        self, graph_path: str | Path, srs_path: str | Path
+    ) -> Tuple[GraphLoader, SRSLoader]:
         """Return both loaders already .load()ed, without any DB interaction."""
         return GraphLoader(graph_path).load(), SRSLoader(srs_path).load()
+
+    def _get_embedder(self) -> Embedder:
+        if self._embedder is None:
+            self._embedder = Embedder(self._cfg)
+        return self._embedder
+
+    def _resolve_dim(self, store: Store, embed: bool) -> int:
+        """
+        The vector dimension to initialise/verify the schema with.
+
+        With embedding: the model's real dimension.  Without: EMBED_DIM, else
+        the dimension already recorded in the database — never a guess.
+        """
+        if embed:
+            return self._get_embedder().dim
+        dim = self._cfg.embed_dim or store.get_schema_embed_dim()
+        if dim is None:
+            raise ValueError(
+                "Embedding dimension unknown: set EMBED_DIM, or run once with "
+                "embeddings enabled (or init-schema) so the schema records it."
+            )
+        return dim

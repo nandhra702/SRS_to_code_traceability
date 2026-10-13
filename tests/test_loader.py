@@ -1,329 +1,211 @@
 """
-Tests for traceability.loader — GraphLoader and SRSLoader.
+Tests for traceability.loader — GraphLoader, read_post_run_docstrings, SRSLoader.
 
-Pure Python — no DB, no model.
+Uses the real DocAgent / SRS Agent outputs in tests/fixtures; no DB, no model.
 """
 
 from __future__ import annotations
 
 import json
+
 import pytest
 
-from traceability.loader import GraphLoader, SRSLoader
-from traceability.tests.conftest import (
-    COMPONENT_RECORDS, LEGACY_GRAPH, V1_GRAPH, REQUIREMENT_RECORDS
-)
+from traceability.loader import GraphLoader, SRSLoader, read_post_run_docstrings
+from traceability.tests.conftest import requirement, v1_component, write_json
 
 
 # ============================================================================
-# GraphLoader — legacy flat format
+# GraphLoader — real files
 # ============================================================================
 
-class TestGraphLoaderLegacy:
 
-    def test_load_returns_self(self, legacy_graph_file):
-        gl = GraphLoader(legacy_graph_file)
-        assert gl.load() is gl
+class TestGraphLoaderRealFiles:
 
-    def test_component_count(self, legacy_graph_file):
-        gl = GraphLoader(legacy_graph_file).load()
-        assert len(gl.components) == len(COMPONENT_RECORDS)
+    def test_v1_detected_with_typed_relationships(self, real_v1_graph):
+        g = GraphLoader(real_v1_graph).load()
+        assert g.format == "v1"
+        assert len(g.components) == 20
+        assert len(g.relationships) == 22
+        assert {r["type"] for r in g.relationships} <= {
+            "calls", "imports", "inherits", "instantiates", "contains"}
 
-    def test_all_ids_present(self, legacy_graph_file):
-        gl = GraphLoader(legacy_graph_file).load()
-        for cid in COMPONENT_RECORDS:
-            assert cid in gl.components
+    def test_v1_components_carry_source_and_signature(self, real_v1_graph):
+        g = GraphLoader(real_v1_graph).load()
+        methods = [c for c in g.components.values() if c["component_type"] == "method"]
+        assert all(c["source_code"] for c in g.components.values())
+        assert all(c["containing_class"] for c in methods)
 
-    def test_component_fields_intact(self, legacy_graph_file):
-        gl = GraphLoader(legacy_graph_file).load()
-        c = gl.components["helper.HelperClass.process_data"]
-        assert c["component_type"] == "method"
-        assert c["relative_path"] == "helper.py"
-        assert c["start_line"] == 2
+    def test_legacy_detected_without_relationships(self, real_legacy_graph):
+        g = GraphLoader(real_legacy_graph).load()
+        assert g.format == "legacy"
+        assert len(g.components) == 20
+        assert g.relationships == []
 
-    def test_relationships_from_inline_list(self, legacy_graph_file):
-        gl = GraphLoader(legacy_graph_file).load()
-        types = {r["type"] for r in gl.relationships}
-        assert "contains" in types
+    def test_legacy_and_v1_describe_same_components(self, real_v1_graph, real_legacy_graph):
+        v1 = GraphLoader(real_v1_graph).load()
+        legacy = GraphLoader(real_legacy_graph).load()
+        assert set(v1.components) == set(legacy.components)
 
-    def test_relationships_deduplicated(self, legacy_graph_file):
-        # Write a graph where the same rel appears twice
-        data = {
-            "a.A": {
-                "id": "a.A", "component_type": "class",
-                "file_path": "/p.py", "relative_path": "p.py",
-                "depends_on": [], "start_line": 1, "end_line": 2,
-                "has_docstring": False, "docstring": "",
-                "relationships": [
-                    {"source": "a.A", "target": "a.A.m", "type": "contains"},
-                    {"source": "a.A", "target": "a.A.m", "type": "contains"},
-                ],
-            },
-            "a.A.m": {
-                "id": "a.A.m", "component_type": "method",
-                "file_path": "/p.py", "relative_path": "p.py",
-                "depends_on": [], "start_line": 3, "end_line": 4,
-                "has_docstring": False, "docstring": "", "relationships": [],
-            },
-        }
-        import tempfile, os
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".json", delete=False
-        ) as f:
-            json.dump(data, f)
-            path = f.name
-        try:
-            gl = GraphLoader(path).load()
-            assert len(gl.relationships) == 1
-        finally:
-            os.unlink(path)
+    def test_default_repo_id_strips_docagent_suffix(self, tmp_path):
+        p = write_json(tmp_path / "my_repo_dependency_graph.json", {"components": {}})
+        assert GraphLoader(p).load().default_repo_id() == "my_repo"
 
-    def test_missing_relationships_key_ok(self, tmp_path):
-        data = {
-            "mod.f": {
-                "id": "mod.f", "component_type": "function",
-                "file_path": "/p.py", "relative_path": "p.py",
-                "depends_on": [], "start_line": 1, "end_line": 2,
-                "has_docstring": False, "docstring": "",
-                # no "relationships" key
-            }
-        }
-        p = tmp_path / "g.json"
-        p.write_text(json.dumps(data))
-        gl = GraphLoader(str(p)).load()
-        assert "mod.f" in gl.components
-        assert gl.relationships == []
 
-    def test_access_before_load_raises(self, legacy_graph_file):
+# ============================================================================
+# GraphLoader — validation
+# ============================================================================
+
+
+class TestGraphLoaderValidation:
+
+    def test_must_call_load_first(self, real_v1_graph):
         with pytest.raises(RuntimeError):
-            GraphLoader(legacy_graph_file).components
+            GraphLoader(real_v1_graph).components
 
-    def test_repr(self, legacy_graph_file):
-        r = repr(GraphLoader(legacy_graph_file).load())
-        assert "legacy_graph.json" in r
+    def test_non_object_rejected(self, tmp_path):
+        with pytest.raises(ValueError):
+            GraphLoader(write_json(tmp_path / "g.json", [1, 2])).load()
 
-
-# ============================================================================
-# GraphLoader — V1 format
-# ============================================================================
-
-class TestGraphLoaderV1:
-
-    def test_component_count(self, v1_graph_file):
-        gl = GraphLoader(v1_graph_file).load()
-        assert len(gl.components) == len(V1_GRAPH["components"])
-
-    def test_relationships_from_top_level(self, v1_graph_file):
-        gl = GraphLoader(v1_graph_file).load()
-        assert len(gl.relationships) == len(V1_GRAPH["relationships"])
-
-    def test_relationship_fields(self, v1_graph_file):
-        gl = GraphLoader(v1_graph_file).load()
-        for rel in gl.relationships:
-            assert "source" in rel and "target" in rel and "type" in rel
-
-    def test_v1_dedup(self, tmp_path):
-        data = {
-            "components": {
-                "a.A": {"id": "a.A", "component_type": "class",
-                        "file_path": "/p.py", "relative_path": "p.py",
-                        "depends_on": [], "start_line": 1, "end_line": 1,
-                        "has_docstring": False, "docstring": ""},
-                "a.A.m": {"id": "a.A.m", "component_type": "method",
-                          "file_path": "/p.py", "relative_path": "p.py",
-                          "depends_on": [], "start_line": 2, "end_line": 3,
-                          "has_docstring": False, "docstring": ""},
-            },
+    def test_malformed_relationships_counted_and_dropped(self, tmp_path):
+        graph = {
+            "components": {"m.a": v1_component("m.a"), "m.b": v1_component("m.b")},
             "relationships": [
-                {"source": "a.A", "target": "a.A.m", "type": "contains"},
-                {"source": "a.A", "target": "a.A.m", "type": "contains"},
+                {"source": "m.a", "target": "m.b", "type": "calls"},
+                {"source": "m.a", "target": "m.b"},            # no type
+                {"source": "m.a", "target": None, "type": "calls"},
+                "not-a-dict",
             ],
         }
-        p = tmp_path / "v1.json"
-        p.write_text(json.dumps(data))
-        gl = GraphLoader(str(p)).load()
-        assert len(gl.relationships) == 1
+        g = GraphLoader(write_json(tmp_path / "g.json", graph)).load()
+        assert g.relationships == [{"source": "m.a", "target": "m.b", "type": "calls"}]
+        assert g.malformed_relationships == 3
+
+    def test_duplicate_relationships_deduplicated(self, tmp_path):
+        rel = {"source": "m.a", "target": "m.b", "type": "calls"}
+        graph = {"components": {"m.a": v1_component("m.a"), "m.b": v1_component("m.b")},
+                 "relationships": [rel, dict(rel)]}
+        assert len(GraphLoader(write_json(tmp_path / "g.json", graph)).load().relationships) == 1
+
+    def test_malformed_components_ignored(self, tmp_path):
+        graph = {"components": {"m.a": v1_component("m.a"), "m.bad": {"id": "m.bad"}}}
+        assert list(GraphLoader(write_json(tmp_path / "g.json", graph)).load().components) == ["m.a"]
+
+    def test_legacy_inline_relationships_collected(self, tmp_path):
+        rel = {"source": "m.a", "target": "m.b", "type": "calls"}
+        graph = {"m.a": v1_component("m.a", relationships=[rel]), "m.b": v1_component("m.b")}
+        g = GraphLoader(write_json(tmp_path / "g.json", graph)).load()
+        assert g.format == "legacy" and g.relationships == [rel]
 
 
 # ============================================================================
-# GraphLoader — as_embedding_texts
+# Docstring provenance
 # ============================================================================
 
-class TestGraphEmbedTexts:
 
-    def test_all_ids_present(self, legacy_graph_file):
-        gl = GraphLoader(legacy_graph_file).load()
-        texts = gl.as_embedding_texts()
-        assert set(texts.keys()) == set(gl.components.keys())
+class TestDocstringRecords:
 
-    def test_signature_included(self, legacy_graph_file):
-        gl = GraphLoader(legacy_graph_file).load()
-        texts = gl.as_embedding_texts()
-        assert "process_data" in texts["helper.HelperClass.process_data"]
+    def test_existing_docstrings_from_graph(self, real_v1_graph):
+        g = GraphLoader(real_v1_graph).load()
+        recs = g.docstring_records()
+        expected = sum(1 for c in g.components.values()
+                       if c["has_docstring"] and c["docstring"].strip())
+        assert len(recs) == expected == 18
+        assert {r["kind"] for r in recs} == {"existing"}
 
-    def test_docstring_included(self, legacy_graph_file):
-        gl = GraphLoader(legacy_graph_file).load()
-        texts = gl.as_embedding_texts()
-        assert "helper class" in texts["helper.HelperClass"].lower()
+    def test_unchanged_source_yields_no_generated(self, real_v1_graph, repo_copy):
+        g = GraphLoader(real_v1_graph).load()
+        post = read_post_run_docstrings(g.components, repo_copy)
+        assert len(post) == 20  # every component located
+        assert all(r["kind"] == "existing" for r in g.docstring_records(post))
 
-    def test_source_code_truncated(self, tmp_path):
-        long_code = "x = 1\n" * 1000
-        data = {"mod.f": {
-            "id": "mod.f", "component_type": "function",
-            "file_path": "/p.py", "relative_path": "p.py",
-            "depends_on": [], "start_line": 1, "end_line": 1000,
-            "has_docstring": False, "docstring": "", "source_code": long_code,
-        }}
-        p = tmp_path / "g.json"
-        p.write_text(json.dumps(data))
-        gl = GraphLoader(str(p)).load()
-        assert len(gl.as_embedding_texts()["mod.f"]) <= 2010
+    def test_docstring_added_by_generation_is_generated(self, real_v1_graph, repo_copy):
+        g = GraphLoader(real_v1_graph).load()
+        target = next(cid for cid, c in g.components.items()
+                      if c["component_type"] == "method" and not c["has_docstring"])
+        cls = target.rsplit(".", 1)[0].split(".")[-1]
+        method = target.rsplit(".", 1)[1]
+        path = repo_copy / g.components[target]["relative_path"]
+        lines = path.read_text().splitlines()
+        # Insert a docstring after the method's def line, like DocAgent does —
+        # this shifts every line below, so lookup must be by name, not line.
+        in_class = False
+        for i, line in enumerate(lines):
+            if line.startswith(f"class {cls}"):
+                in_class = True
+            elif in_class and line.strip().startswith(f"def {method}("):
+                indent = line[: len(line) - len(line.lstrip())] + "    "
+                lines.insert(i + 1, f'{indent}"""Generated by DocAgent."""')
+                break
+        path.write_text("\n".join(lines) + "\n")
 
-    def test_empty_component_gives_empty_string(self, tmp_path):
-        data = {"mod.bare": {
-            "id": "mod.bare", "component_type": "class",
-            "file_path": "/p.py", "relative_path": "p.py",
-            "depends_on": [], "start_line": 1, "end_line": 1,
-            "has_docstring": False, "docstring": "",
-            "signature": None, "source_code": None,
-        }}
-        p = tmp_path / "g.json"
-        p.write_text(json.dumps(data))
-        gl = GraphLoader(str(p)).load()
-        assert gl.as_embedding_texts()["mod.bare"] == ""
+        post = read_post_run_docstrings(g.components, repo_copy)
+        gen = [r for r in g.docstring_records(post) if r["kind"] == "generated"]
+        assert [r["component_id"] for r in gen] == [target]
+        assert gen[0]["content"] == "Generated by DocAgent."
+        assert gen[0]["provenance"]["replaced_existing"] is False
 
+    def test_overwritten_docstring_keeps_both(self, tmp_path):
+        comp = v1_component("mod.f", has_docstring=True, docstring="Old doc.")
+        g = GraphLoader(write_json(tmp_path / "g.json", {"components": {"mod.f": comp}})).load()
+        (tmp_path / "mod.py").write_text('def f():\n    """New doc."""\n    return 1\n')
+        recs = g.docstring_records(read_post_run_docstrings(g.components, tmp_path))
+        assert {(r["kind"], r["content"]) for r in recs} == {
+            ("existing", "Old doc."), ("generated", "New doc.")}
 
-# ============================================================================
-# GraphLoader — real file on disk
-# ============================================================================
-
-class TestGraphLoaderRealFile:
-
-    def test_loads(self, real_graph_file):
-        gl = GraphLoader(real_graph_file).load()
-        assert len(gl.components) > 0
-
-    def test_ids_have_dots(self, real_graph_file):
-        gl = GraphLoader(real_graph_file).load()
-        for cid in gl.components:
-            assert "." in cid
-
-    def test_known_ids_present(self, real_graph_file):
-        gl = GraphLoader(real_graph_file).load()
-        for eid in ("main.main_function", "main.utility_function", "helper.HelperClass"):
-            assert eid in gl.components
+    def test_missing_source_file_skipped(self, real_v1_graph, tmp_path):
+        g = GraphLoader(real_v1_graph).load()
+        assert read_post_run_docstrings(g.components, tmp_path) == {}
 
 
 # ============================================================================
 # SRSLoader
 # ============================================================================
 
+
 class TestSRSLoader:
 
-    def test_load_returns_self(self, srs_output_file):
-        sl = SRSLoader(srs_output_file)
-        assert sl.load() is sl
+    def test_real_docx_output(self, real_srs):
+        s = SRSLoader(real_srs).load()
+        assert len(s.requirements) == 62
+        doc = s.document_record()
+        assert doc["file_name"] == "Basic_SRS_Document.docx"
+        assert doc["source_type"] == "docx"
+        assert doc["document_id"] == real_srs.stem
 
-    def test_requirement_count(self, srs_output_file):
-        sl = SRSLoader(srs_output_file).load()
-        assert len(sl.requirements) == len(REQUIREMENT_RECORDS)
+    def test_real_text_output_has_unknown_source(self, real_text_srs):
+        doc = SRSLoader(real_text_srs).load().document_record()
+        assert doc["source_type"] == "unknown"
 
-    def test_ids_preserved(self, srs_output_file):
-        sl = SRSLoader(srs_output_file).load()
-        ids = {r["requirement_id"] for r in sl.requirements}
-        assert {"REQ-001", "FR-01.1", "FR-01.2"} <= ids
+    def test_document_id_override(self, real_srs):
+        assert SRSLoader(real_srs).load().document_record("my-srs")["document_id"] == "my-srs"
 
-    def test_required_fields_present(self, srs_output_file):
-        sl = SRSLoader(srs_output_file).load()
-        for rec in sl.requirements:
-            for f in ("requirement_id", "raw_text", "type", "retrieval_text", "title"):
-                assert f in rec
+    def test_srsoutput_wrapper_accepted(self, tmp_path):
+        wrapped = {"analysis_id": "a1",
+                   "source": {"document_id": "doc-7", "file_name": "spec.pdf",
+                              "source_type": "pdf", "total_requirements": 1},
+                   "requirements": [requirement("FR-1")]}
+        s = SRSLoader(write_json(tmp_path / "out.json", wrapped)).load()
+        doc = s.document_record()
+        assert len(s.requirements) == 1
+        assert (doc["document_id"], doc["source_type"]) == ("doc-7", "pdf")
 
-    def test_source_location_preserved(self, srs_output_file):
-        sl = SRSLoader(srs_output_file).load()
-        req = next(r for r in sl.requirements if r["requirement_id"] == "REQ-001")
-        assert req["source"]["paragraph"] == 11
-        assert req["source"]["file_name"] == "Basic_SRS_Document.docx"
+    def test_duplicate_ids_rejected(self, tmp_path):
+        p = write_json(tmp_path / "r.json", [requirement("FR-1"), requirement("FR-1")])
+        with pytest.raises(ValueError, match="Duplicate"):
+            SRSLoader(p).load()
 
-    def test_list_fields_are_lists(self, srs_output_file):
-        sl = SRSLoader(srs_output_file).load()
-        for rec in sl.requirements:
-            for f in ("actor", "actions", "entities", "domain_terms"):
-                assert isinstance(rec.get(f, []), list)
+    @pytest.mark.parametrize("bad", [
+        {"raw_text": "x"},                                 # no id
+        {"requirement_id": "", "raw_text": "x"},           # empty id
+        {"requirement_id": "FR-1", "raw_text": "  "},      # empty text
+    ])
+    def test_invalid_records_rejected(self, tmp_path, bad):
+        with pytest.raises(ValueError):
+            SRSLoader(write_json(tmp_path / "r.json", [bad])).load()
 
-    def test_access_before_load_raises(self, srs_output_file):
-        with pytest.raises(RuntimeError):
-            SRSLoader(srs_output_file).requirements
+    def test_non_list_rejected(self, tmp_path):
+        with pytest.raises(ValueError):
+            SRSLoader(write_json(tmp_path / "r.json", {"x": 1})).load()
 
-    def test_non_array_raises(self, tmp_path):
-        p = tmp_path / "bad.json"
-        p.write_text(json.dumps({"not": "array"}))
-        with pytest.raises(ValueError, match="JSON array"):
-            SRSLoader(str(p)).load()
-
-    def test_missing_requirement_id_raises(self, tmp_path):
-        p = tmp_path / "bad.json"
-        p.write_text(json.dumps([{"raw_text": "no id"}]))
-        with pytest.raises(ValueError, match="requirement_id"):
-            SRSLoader(str(p)).load()
-
-    def test_document_record_inference(self, srs_output_file):
-        sl = SRSLoader(srs_output_file).load()
-        dr = sl.document_record()
-        assert dr["file_name"] == "Basic_SRS_Document.docx"
-        assert dr["source_type"] == "docx"
-        assert dr["total_requirements"] == len(REQUIREMENT_RECORDS)
-
-    def test_repr(self, srs_output_file):
-        r = repr(SRSLoader(srs_output_file).load())
-        assert "requirements" in r
-
-
-# ============================================================================
-# SRSLoader — as_embedding_texts
-# ============================================================================
-
-class TestSRSEmbedTexts:
-
-    def test_all_ids_present(self, srs_output_file):
-        sl = SRSLoader(srs_output_file).load()
-        texts = sl.as_embedding_texts()
-        for rec in sl.requirements:
-            assert rec["requirement_id"] in texts
-
-    def test_retrieval_text_included(self, srs_output_file):
-        sl = SRSLoader(srs_output_file).load()
-        texts = sl.as_embedding_texts()
-        assert "login" in texts["FR-01.1"]
-
-    def test_domain_terms_included(self, srs_output_file):
-        sl = SRSLoader(srs_output_file).load()
-        texts = sl.as_embedding_texts()
-        assert "authentication" in texts["FR-01.1"]
-
-    def test_synonyms_included(self, srs_output_file):
-        sl = SRSLoader(srs_output_file).load()
-        texts = sl.as_embedding_texts()
-        assert "sign in" in texts["FR-01.1"]
-
-
-# ============================================================================
-# SRSLoader — real file
-# ============================================================================
-
-class TestSRSLoaderRealFile:
-
-    def test_loads(self, real_srs_file):
-        sl = SRSLoader(real_srs_file).load()
-        assert len(sl.requirements) > 0
-
-    def test_ids_non_empty(self, real_srs_file):
-        sl = SRSLoader(real_srs_file).load()
-        for r in sl.requirements:
-            assert r["requirement_id"].strip()
-
-    def test_type_values_valid(self, real_srs_file):
-        sl = SRSLoader(real_srs_file).load()
-        valid = {"functional", "non-functional", "other"}
-        for r in sl.requirements:
-            assert r["type"] in valid
+    def test_empty_array_is_valid(self, tmp_path):
+        assert SRSLoader(write_json(tmp_path / "r.json", [])).load().requirements == []

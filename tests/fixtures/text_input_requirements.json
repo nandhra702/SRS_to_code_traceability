@@ -1,0 +1,644 @@
+[
+  {
+    "requirement_id": "REQ-001",
+    "id_source": "generated",
+    "raw_text": "The Restaurant Management System is a software application designed to simplify restaurant operations. It allows customers to view menus, place orders, and make payments using a QR code. Staff members can manage orders, while administrators can manage menu items and monitor restaurant activities.",
+    "normalized_text": "The Restaurant Management System simplifies restaurant operations.",
+    "type": "other",
+    "subtype": "interface",
+    "detection_confidence": "medium",
+    "detection_reason": "capability or expected behavior wording: can",
+    "candidate_id": "C-0001",
+    "candidate_decision": "keep",
+    "candidate_confidence": "medium",
+    "candidate_reason": "The candidate text states a functional requirement for the system to allow customers to scan a table-specific QR code to access the restaurant menu.",
+    "review_required": true,
+    "title": "Restaurant Operations Simplification",
+    "actor": [
+      "customer",
+      "staff member",
+      "administrator"
+    ],
+    "actions": [
+      "view menu",
+      "place order",
+      "make payment",
+      "manage order",
+      "manage menu item"
+    ],
+    "entities": [
+      "menu",
+      "order",
+      "payment",
+      "restaurant",
+      "QR code"
+    ],
+    "inputs": [
+      "QR code"
+    ],
+    "outputs": [
+      "viewed menu",
+      "placed order",
+      "made payment",
+      "managed order",
+      "managed menu item"
+    ],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "restaurant management",
+      "software application",
+      "simplify"
+    ],
+    "synonyms": [
+      "simplify",
+      "streamline",
+      "automate"
+    ],
+    "sub_requirements": [
+      "Customer can view menu",
+      "Customer can place order",
+      "Customer can make payment",
+      "Staff member can manage order",
+      "Administrator can manage menu item",
+      "Administrator can monitor restaurant activities"
+    ],
+    "retrieval_text": "customer restaurant QR code menu order payment",
+    "source": {
+      "document_id": null,
+      "file_name": null,
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": null,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-002",
+    "id_source": "generated",
+    "raw_text": "FR1: The system shall allow customers to scan a table-specific QR code to access the restaurant menu.",
+    "normalized_text": "",
+    "type": "other",
+    "subtype": "interface",
+    "detection_confidence": "high",
+    "detection_reason": "explicit obligation wording: shall",
+    "candidate_id": "C-0003",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "QR Code Access to Menu",
+    "actor": [
+      "customer"
+    ],
+    "actions": [
+      "scan",
+      "access"
+    ],
+    "entities": [
+      "QR code",
+      "restaurant menu"
+    ],
+    "inputs": [
+      "table-specific QR code"
+    ],
+    "outputs": [
+      "restaurant menu"
+    ],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "QR code",
+      "restaurant menu",
+      "customer"
+    ],
+    "synonyms": [
+      "QR code",
+      "menu",
+      "customer"
+    ],
+    "sub_requirements": [],
+    "retrieval_text": "QR code customer access menu",
+    "source": {
+      "document_id": null,
+      "file_name": null,
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": null,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-003",
+    "id_source": "generated",
+    "raw_text": "FR2: The system shall allow customers to view available food items, prices, and descriptions.",
+    "normalized_text": "",
+    "type": "other",
+    "subtype": "availability",
+    "detection_confidence": "high",
+    "detection_reason": "explicit obligation wording: shall",
+    "candidate_id": "C-0004",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "View Available Food Items",
+    "actor": [
+      "customer"
+    ],
+    "actions": [
+      "view available food items"
+    ],
+    "entities": [
+      "food items",
+      "prices",
+      "descriptions"
+    ],
+    "inputs": [],
+    "outputs": [
+      "available food items",
+      "prices",
+      "descriptions"
+    ],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "food items",
+      "prices",
+      "descriptions",
+      "customers"
+    ],
+    "synonyms": [
+      "food",
+      "items",
+      "price",
+      "description",
+      "customer"
+    ],
+    "sub_requirements": [],
+    "retrieval_text": "view available food items prices descriptions customers",
+    "source": {
+      "document_id": null,
+      "file_name": null,
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": null,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-004",
+    "id_source": "generated",
+    "raw_text": "FR3: The system shall allow customers to add, remove, and modify items in their cart.",
+    "normalized_text": "The system shall allow customers to add, remove and modify items in their cart.",
+    "type": "other",
+    "subtype": "interface",
+    "detection_confidence": "high",
+    "detection_reason": "explicit obligation wording: shall",
+    "candidate_id": "C-0005",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Cart Management",
+    "actor": [
+      "customer"
+    ],
+    "actions": [
+      "add",
+      "remove",
+      "modify"
+    ],
+    "entities": [
+      "cart",
+      "items"
+    ],
+    "inputs": [
+      "cart",
+      "items"
+    ],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "cart",
+      "items",
+      "customers"
+    ],
+    "synonyms": [],
+    "sub_requirements": [],
+    "retrieval_text": "cart management add remove modify",
+    "source": {
+      "document_id": null,
+      "file_name": null,
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": null,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-005",
+    "id_source": "generated",
+    "raw_text": "FR4: The system shall allow customers to place orders and make online payments.",
+    "normalized_text": "",
+    "type": "other",
+    "subtype": "interface",
+    "detection_confidence": "high",
+    "detection_reason": "explicit obligation wording: shall",
+    "candidate_id": "C-0006",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Customer Order and Payment Processing",
+    "actor": [
+      "customer"
+    ],
+    "actions": [
+      "place order",
+      "make online payment"
+    ],
+    "entities": [
+      "order",
+      "payment"
+    ],
+    "inputs": [
+      "customer information",
+      "order details",
+      "payment method"
+    ],
+    "outputs": [
+      "order confirmation",
+      "payment receipt"
+    ],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "order management",
+      "payment processing"
+    ],
+    "synonyms": [],
+    "sub_requirements": [],
+    "retrieval_text": "customer place order make payment",
+    "source": {
+      "document_id": null,
+      "file_name": null,
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": null,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-006",
+    "id_source": "generated",
+    "raw_text": "FR5: The system shall provide staff with a dashboard to view and update order statuses.",
+    "normalized_text": "The system shall provide staff with a dashboard to view and update order statuses.",
+    "type": "other",
+    "subtype": "interface",
+    "detection_confidence": "high",
+    "detection_reason": "explicit obligation wording: shall",
+    "candidate_id": "C-0007",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Staff Dashboard for Order Status",
+    "actor": [
+      "staff"
+    ],
+    "actions": [
+      "view order statuses",
+      "update order statuses"
+    ],
+    "entities": [
+      "dashboard",
+      "order statuses"
+    ],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "dashboard",
+      "order",
+      "status"
+    ],
+    "synonyms": [],
+    "sub_requirements": [],
+    "retrieval_text": "staff dashboard order statuses view update",
+    "source": {
+      "document_id": null,
+      "file_name": null,
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": null,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-007",
+    "id_source": "generated",
+    "raw_text": "FR6: The system shall allow administrators to add, update, and delete menu items.",
+    "normalized_text": "The system shall allow administrators to add, update, and delete menu items.",
+    "type": "other",
+    "subtype": "interface",
+    "detection_confidence": "high",
+    "detection_reason": "explicit obligation wording: shall",
+    "candidate_id": "C-0008",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Manage Menu Items",
+    "actor": [
+      "administrators"
+    ],
+    "actions": [
+      "add",
+      "update",
+      "delete"
+    ],
+    "entities": [
+      "menu items"
+    ],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "menu",
+      "administration"
+    ],
+    "synonyms": [],
+    "sub_requirements": [],
+    "retrieval_text": "administrators add update delete menu items",
+    "source": {
+      "document_id": null,
+      "file_name": null,
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": null,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-008",
+    "id_source": "generated",
+    "raw_text": "NFR1: The system shall load the menu and display order details within three seconds under normal operating conditions.",
+    "normalized_text": "The system shall load the menu and display order details within three seconds under normal operating conditions.",
+    "type": "other",
+    "subtype": "performance",
+    "detection_confidence": "high",
+    "detection_reason": "explicit obligation wording: shall",
+    "candidate_id": "C-0010",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Menu Loading Performance",
+    "actor": [
+      "system"
+    ],
+    "actions": [
+      "load menu and display order details within three seconds under normal operating conditions"
+    ],
+    "entities": [
+      "order"
+    ],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [
+      "load the menu and display order details within three seconds"
+    ],
+    "error_conditions": [],
+    "domain_terms": [
+      "menu",
+      "order details",
+      "performance"
+    ],
+    "synonyms": [
+      "menu loading",
+      "order display"
+    ],
+    "sub_requirements": [],
+    "retrieval_text": "menu loading performance three seconds normal operating conditions",
+    "source": {
+      "document_id": null,
+      "file_name": null,
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": null,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-009",
+    "id_source": "generated",
+    "raw_text": "NFR2: The system shall protect customer information and payment-related data from unauthorized access.",
+    "normalized_text": "protect customer information and payment-related data from unauthorized access",
+    "type": "other",
+    "subtype": "security",
+    "detection_confidence": "high",
+    "detection_reason": "explicit obligation wording: shall",
+    "candidate_id": "C-0011",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Data Protection",
+    "actor": [
+      "system"
+    ],
+    "actions": [
+      "protect"
+    ],
+    "entities": [
+      "customer information",
+      "payment-related data"
+    ],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [
+      "unauthorized access"
+    ],
+    "error_conditions": [],
+    "domain_terms": [
+      "security",
+      "data protection"
+    ],
+    "synonyms": [
+      "protect",
+      "secure"
+    ],
+    "sub_requirements": [],
+    "retrieval_text": "data protection security system",
+    "source": {
+      "document_id": null,
+      "file_name": null,
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": null,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-010",
+    "id_source": "generated",
+    "raw_text": "NFR3: The system shall be available 99% of the time during restaurant operating hours.",
+    "normalized_text": "The system shall be available 99% of the time during restaurant operating hours.",
+    "type": "other",
+    "subtype": "availability",
+    "detection_confidence": "high",
+    "detection_reason": "explicit obligation wording: shall",
+    "candidate_id": "C-0012",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "System Availability",
+    "actor": [
+      "system"
+    ],
+    "actions": [
+      "be available 99% of time during restaurant operating hours"
+    ],
+    "entities": [],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [
+      "99% of the time"
+    ],
+    "error_conditions": [],
+    "domain_terms": [
+      "availability",
+      "operating hours"
+    ],
+    "synonyms": [],
+    "sub_requirements": [],
+    "retrieval_text": "availability 99% operating hours",
+    "source": {
+      "document_id": null,
+      "file_name": null,
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": null,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-011",
+    "id_source": "generated",
+    "raw_text": "NFR4: The system shall support multiple customers placing orders simultaneously without significant performance degradation.",
+    "normalized_text": "",
+    "type": "other",
+    "subtype": "availability",
+    "detection_confidence": "high",
+    "detection_reason": "explicit obligation wording: shall",
+    "candidate_id": "C-0013",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Multiple Orders Support",
+    "actor": [
+      "system"
+    ],
+    "actions": [
+      "support"
+    ],
+    "entities": [
+      "orders",
+      "customers"
+    ],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [
+      "performance degradation"
+    ],
+    "error_conditions": [],
+    "domain_terms": [
+      "orders",
+      "customers",
+      "performance"
+    ],
+    "synonyms": [],
+    "sub_requirements": [],
+    "retrieval_text": "support orders customers performance",
+    "source": {
+      "document_id": null,
+      "file_name": null,
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": null,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  }
+]

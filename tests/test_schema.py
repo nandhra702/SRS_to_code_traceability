@@ -1,352 +1,205 @@
 """
-Tests for traceability.schema — DDL generation.
+Tests for traceability.schema.
 
-No DB required for structural tests.
-Live DDL execution tests skip if PostgreSQL is unavailable.
+Structural tests check the generated DDL without a database.  The live tests
+execute the DDL on the disposable test database and check that constraints
+are actually *enforced*, which string matching cannot show.
 """
 
 from __future__ import annotations
 
+import psycopg2
 import pytest
 
-from traceability.config import TraceabilityConfig
 from traceability.schema import (
+    LINK_TYPES,
+    RELATIONSHIP_TYPES,
     SCHEMA_VERSION,
     all_create_ddl,
-    btree_index_ddl,
     create_code_components_table_ddl,
-    create_docstrings_table_ddl,
-    create_extension_ddl,
-    create_mappings_table_ddl,
-    create_migrations_table_ddl,
-    create_relationships_table_ddl,
     create_requirements_table_ddl,
-    create_srs_documents_table_ddl,
-    ivfflat_index_ddl,
+    vector_index_ddl,
 )
-from traceability.tests.conftest import FAKE_DIM, requires_pg
-
-DIM = 384
-
-
-@pytest.fixture()
-def cfg():
-    return TraceabilityConfig(embed_dim=DIM)
+from traceability.tests.conftest import FAKE_DIM, make_cfg, requires_pg
 
 
 # ============================================================================
-# SCHEMA_VERSION
+# Structural (no database)
 # ============================================================================
 
-def test_schema_version_string():
-    assert isinstance(SCHEMA_VERSION, str)
-    assert SCHEMA_VERSION  # non-empty
+
+def test_schema_version_is_v2():
+    assert SCHEMA_VERSION.startswith("2.")
 
 
-# ============================================================================
-# Extension
-# ============================================================================
-
-def test_extension_contains_vector(cfg):
-    assert "vector" in create_extension_ddl().lower()
-
-def test_extension_idempotent(cfg):
-    assert "if not exists" in create_extension_ddl().lower()
+def test_relationship_types_match_docagent_v1():
+    # DocAgent V1 RELATIONSHIP_TYPES
+    assert set(RELATIONSHIP_TYPES) == {"calls", "imports", "inherits", "instantiates", "contains"}
 
 
-# ============================================================================
-# Migrations table
-# ============================================================================
-
-def test_migrations_table_name(cfg):
-    sql = create_migrations_table_ddl(cfg)
-    assert cfg.table_migrations in sql
-
-def test_migrations_primary_key(cfg):
-    sql = create_migrations_table_ddl(cfg).lower()
-    assert "version" in sql and "primary key" in sql
+@pytest.mark.parametrize("dim", [4, 384, 1536])
+def test_vector_dimension_comes_from_argument(dim):
+    cfg = make_cfg()
+    assert f"vector({dim})" in create_requirements_table_ddl(cfg, dim)
+    assert f"vector({dim})" in create_code_components_table_ddl(cfg, dim)
 
 
-# ============================================================================
-# SRS Documents table
-# ============================================================================
-
-def test_srs_documents_table_name(cfg):
-    assert cfg.table_srs_documents in create_srs_documents_table_ddl(cfg)
-
-def test_srs_documents_unique_document_id(cfg):
-    sql = create_srs_documents_table_ddl(cfg).lower()
-    assert "unique" in sql and "document_id" in sql
-
-def test_srs_documents_if_not_exists(cfg):
-    assert "if not exists" in create_srs_documents_table_ddl(cfg).lower()
+def test_zero_dim_raises():
+    with pytest.raises(ValueError):
+        all_create_ddl(make_cfg(), 0)
 
 
-# ============================================================================
-# Requirements table
-# ============================================================================
+def test_no_drop_statements():
+    ddl = " ".join(all_create_ddl(make_cfg(), FAKE_DIM)).upper()
+    assert "DROP " not in ddl and "TRUNCATE" not in ddl
 
-def test_requirements_surrogate_pk(cfg):
-    sql = create_requirements_table_ddl(cfg, DIM).lower()
-    assert "req_pk" in sql and "bigserial" in sql
 
-def test_requirements_natural_unique(cfg):
-    sql = create_requirements_table_ddl(cfg, DIM).lower()
-    # Natural key: (document_pk, requirement_id)
-    assert "document_pk" in sql and "requirement_id" in sql
-    assert "unique" in sql
+def test_every_create_is_idempotent():
+    for stmt in all_create_ddl(make_cfg(), FAKE_DIM) + vector_index_ddl(make_cfg()):
+        assert "IF NOT EXISTS" in stmt, stmt[:80]
 
-def test_requirements_no_primary_key_on_requirement_id(cfg):
-    sql = create_requirements_table_ddl(cfg, DIM)
-    # requirement_id must NOT be PRIMARY KEY alone
-    lines = [l.strip().lower() for l in sql.splitlines()]
-    for line in lines:
-        if "requirement_id" in line and "primary key" in line:
-            pytest.fail("requirement_id must not be PRIMARY KEY")
 
-def test_requirements_fk_to_documents(cfg):
-    sql = create_requirements_table_ddl(cfg, DIM).lower()
-    assert cfg.table_srs_documents.lower() in sql
+def test_custom_table_names_used():
+    cfg = make_cfg(table_components="custom_comps")
+    ddl = " ".join(all_create_ddl(cfg, FAKE_DIM))
+    assert "custom_comps" in ddl
+    assert "tr_code_components" not in ddl
 
-def test_requirements_vector_dim(cfg):
-    sql = create_requirements_table_ddl(cfg, DIM)
-    assert f"vector({DIM})" in sql
 
-def test_requirements_embed_metadata_columns(cfg):
-    sql = create_requirements_table_ddl(cfg, DIM).lower()
-    assert "embed_model_version" in sql
-    assert "embed_text_hash" in sql
-
-def test_requirements_type_check(cfg):
-    sql = create_requirements_table_ddl(cfg, DIM).lower()
-    for t in ("functional", "non-functional", "other"):
-        assert t in sql
-
-def test_requirements_jsonb_columns(cfg):
-    sql = create_requirements_table_ddl(cfg, DIM).lower()
-    for col in ("actor", "actions", "entities", "domain_terms", "synonyms"):
-        assert col in sql
-
-def test_requirements_source_columns(cfg):
-    sql = create_requirements_table_ddl(cfg, DIM).lower()
-    for col in ("src_section", "src_paragraph", "src_page", "src_table"):
-        assert col in sql
-
-def test_requirements_different_dim(cfg):
-    sql = create_requirements_table_ddl(cfg, 768)
-    assert "vector(768)" in sql and "vector(384)" not in sql
-
-def test_requirements_if_not_exists(cfg):
-    assert "if not exists" in create_requirements_table_ddl(cfg, DIM).lower()
+def test_vector_indexes_are_hnsw_cosine():
+    stmts = vector_index_ddl(make_cfg())
+    assert len(stmts) == 3
+    assert all("hnsw" in s and "vector_cosine_ops" in s for s in stmts)
 
 
 # ============================================================================
-# Code components table
+# Live: constraints are enforced
 # ============================================================================
 
-def test_components_component_id_pk(cfg):
-    sql = create_code_components_table_ddl(cfg, DIM).lower()
-    assert "component_id" in sql and "primary key" in sql
 
-def test_components_repo_columns(cfg):
-    sql = create_code_components_table_ddl(cfg, DIM).lower()
-    assert "repo_path" in sql and "repo_snapshot" in sql
+def _insert(cur, sql, params=None):
+    cur.execute(sql, params)
+    return cur.fetchone()[0] if cur.description else None
 
-def test_components_vector_dim(cfg):
-    assert f"vector({DIM})" in create_code_components_table_ddl(cfg, DIM)
-
-def test_components_embed_metadata(cfg):
-    sql = create_code_components_table_ddl(cfg, DIM).lower()
-    assert "embed_model_version" in sql and "embed_text_hash" in sql
-
-def test_components_v1_columns(cfg):
-    sql = create_code_components_table_ddl(cfg, DIM).lower()
-    for col in ("signature", "return_type", "containing_class", "parameters"):
-        assert col in sql
-
-def test_components_type_check(cfg):
-    sql = create_code_components_table_ddl(cfg, DIM).lower()
-    for ct in ("class", "function", "method"):
-        assert ct in sql
-
-
-# ============================================================================
-# Docstrings table
-# ============================================================================
-
-def test_docstrings_table_name(cfg):
-    assert cfg.table_docstrings in create_docstrings_table_ddl(cfg)
-
-def test_docstrings_fk_to_components(cfg):
-    sql = create_docstrings_table_ddl(cfg).lower()
-    assert cfg.table_components.lower() in sql
-
-def test_docstrings_kind_check(cfg):
-    sql = create_docstrings_table_ddl(cfg).lower()
-    assert "original" in sql and "generated" in sql
-
-def test_docstrings_unique_per_component_kind(cfg):
-    sql = create_docstrings_table_ddl(cfg).lower()
-    assert "unique" in sql and "docstring_kind" in sql
-
-
-# ============================================================================
-# Relationships table
-# ============================================================================
-
-def test_relationships_table_name(cfg):
-    assert cfg.table_relationships in create_relationships_table_ddl(cfg)
-
-def test_relationships_fk_to_components(cfg):
-    sql = create_relationships_table_ddl(cfg).lower()
-    assert cfg.table_components.lower() in sql
-
-def test_relationships_unique_triple(cfg):
-    sql = create_relationships_table_ddl(cfg).lower()
-    assert "unique" in sql
-
-def test_relationships_rel_type_open_text(cfg):
-    # rel_type must be TEXT without a CHECK constraint
-    # so future types don't break ingestion
-    sql = create_relationships_table_ddl(cfg).lower()
-    assert "rel_type" in sql
-    # Must NOT have 'check' on the same line as rel_type limiting values
-    for line in sql.splitlines():
-        if "rel_type" in line and "check" in line:
-            pytest.fail("rel_type must not have a CHECK constraint in schema")
-
-
-# ============================================================================
-# Mappings table
-# ============================================================================
-
-def test_mappings_fk_req(cfg):
-    sql = create_mappings_table_ddl(cfg).lower()
-    assert cfg.table_requirements.lower() in sql
-
-def test_mappings_fk_comp(cfg):
-    sql = create_mappings_table_ddl(cfg).lower()
-    assert cfg.table_components.lower() in sql
-
-def test_mappings_confidence_check(cfg):
-    sql = create_mappings_table_ddl(cfg).lower()
-    assert "confidence_score" in sql and "between 0" in sql
-
-def test_mappings_uses_req_pk_not_requirement_id(cfg):
-    sql = create_mappings_table_ddl(cfg).lower()
-    assert "req_pk" in sql
-
-
-# ============================================================================
-# Indexes
-# ============================================================================
-
-def test_btree_returns_list(cfg):
-    stmts = btree_index_ddl(cfg)
-    assert isinstance(stmts, list) and len(stmts) > 0
-
-def test_btree_all_if_not_exists(cfg):
-    for s in btree_index_ddl(cfg):
-        assert "if not exists" in s.lower()
-
-def test_btree_covers_all_tables(cfg):
-    combined = " ".join(btree_index_ddl(cfg)).lower()
-    for t in (cfg.table_requirements, cfg.table_components,
-              cfg.table_relationships, cfg.table_mappings):
-        assert t.lower() in combined
-
-def test_ivfflat_two_stmts(cfg):
-    assert len(ivfflat_index_ddl(cfg)) == 2
-
-def test_ivfflat_cosine(cfg):
-    for s in ivfflat_index_ddl(cfg):
-        assert "vector_cosine_ops" in s
-
-def test_ivfflat_custom_lists(cfg):
-    for s in ivfflat_index_ddl(cfg, lists=50):
-        assert "50" in s
-
-
-# ============================================================================
-# all_create_ddl — ordering
-# ============================================================================
-
-def test_extension_first(cfg):
-    stmts = all_create_ddl(cfg, DIM)
-    assert "CREATE EXTENSION" in stmts[0]
-
-def test_migrations_before_documents(cfg):
-    stmts = all_create_ddl(cfg, DIM)
-    mig = next(i for i, s in enumerate(stmts) if cfg.table_migrations in s and "CREATE TABLE" in s)
-    doc = next(i for i, s in enumerate(stmts) if cfg.table_srs_documents in s and "CREATE TABLE" in s)
-    assert mig < doc
-
-def test_documents_before_requirements(cfg):
-    stmts = all_create_ddl(cfg, DIM)
-    doc = next(i for i, s in enumerate(stmts) if cfg.table_srs_documents in s and "CREATE TABLE" in s)
-    req = next(i for i, s in enumerate(stmts) if cfg.table_requirements in s and "CREATE TABLE" in s)
-    assert doc < req
-
-def test_components_before_docstrings(cfg):
-    stmts = all_create_ddl(cfg, DIM)
-    comp = next(i for i, s in enumerate(stmts) if cfg.table_components in s and "CREATE TABLE" in s)
-    ds   = next(i for i, s in enumerate(stmts) if cfg.table_docstrings in s and "CREATE TABLE" in s)
-    assert comp < ds
-
-def test_components_before_relationships(cfg):
-    stmts = all_create_ddl(cfg, DIM)
-    comp = next(i for i, s in enumerate(stmts) if cfg.table_components in s and "CREATE TABLE" in s)
-    rel  = next(i for i, s in enumerate(stmts) if cfg.table_relationships in s and "CREATE TABLE" in s)
-    assert comp < rel
-
-def test_no_ivfflat_in_all_create(cfg):
-    assert "ivfflat" not in " ".join(all_create_ddl(cfg, DIM)).lower()
-
-def test_zero_dim_raises(cfg):
-    with pytest.raises(ValueError, match="embed_dim"):
-        all_create_ddl(cfg, 0)
-
-def test_custom_table_names():
-    cfg2 = TraceabilityConfig(
-        table_requirements="custom_req",
-        table_components="custom_comp",
-        table_docstrings="custom_ds",
-        table_relationships="custom_rel",
-        table_mappings="custom_map",
-        table_srs_documents="custom_docs",
-        embed_dim=DIM,
-    )
-    combined = " ".join(all_create_ddl(cfg2, DIM))
-    for name in ("custom_req", "custom_comp", "custom_ds",
-                 "custom_rel", "custom_map", "custom_docs"):
-        assert name in combined
-
-
-# ============================================================================
-# Live DDL execution
-# ============================================================================
 
 @requires_pg
-class TestLiveDDL:
+class TestLiveConstraints:
+    """Each test runs against freshly initialised test tables."""
 
     @pytest.fixture(autouse=True)
-    def _setup(self, live_store):
-        # live_store fixture already calls init_schema
-        self.store = live_store
+    def _db(self, live_store, cfg):
+        self.cfg = cfg
+        self.conn = psycopg2.connect(cfg.build_dsn())
+        cur = self.conn.cursor()
+        self.repo = _insert(cur,
+            f"INSERT INTO {cfg.table_repositories} (repo_id, graph_format) "
+            f"VALUES ('r', 'v1') RETURNING repo_pk")
+        self.doc = _insert(cur,
+            f"INSERT INTO {cfg.table_srs_documents} (document_id, file_name, source_type) "
+            f"VALUES ('d', 'd.docx', 'docx') RETURNING document_pk")
+        self.conn.commit()
+        yield
+        self.conn.rollback()
+        self.conn.close()
 
-    def test_init_schema_twice_no_error(self):
-        self.store.init_schema(FAKE_DIM)   # second call is idempotent
+    def _comp(self, cid, ctype="function", repo=None):
+        cur = self.conn.cursor()
+        return _insert(cur,
+            f"INSERT INTO {self.cfg.table_components} "
+            f"(repo_pk, component_id, component_type, file_path, relative_path) "
+            f"VALUES (%s, %s, %s, 'f.py', 'f.py') RETURNING comp_pk",
+            (repo or self.repo, cid, ctype))
 
-    def test_tables_exist(self, cfg):
-        import psycopg2
-        conn = psycopg2.connect(cfg.build_dsn())
-        cur = conn.cursor()
-        for t in (cfg.table_migrations, cfg.table_srs_documents,
-                  cfg.table_requirements, cfg.table_components,
-                  cfg.table_docstrings, cfg.table_relationships,
-                  cfg.table_mappings):
-            cur.execute("SELECT to_regclass(%s);", (t,))
-            result = cur.fetchone()[0]
-            assert result is not None, f"Table {t!r} was not created"
-        cur.close()
-        conn.close()
+    def _req(self, rid, rtype="functional", doc=None):
+        cur = self.conn.cursor()
+        return _insert(cur,
+            f"INSERT INTO {self.cfg.table_requirements} "
+            f"(document_pk, requirement_id, id_source, raw_text, type) "
+            f"VALUES (%s, %s, 'source', 'text', %s) RETURNING req_pk",
+            (doc or self.doc, rid, rtype))
+
+    def test_same_component_id_allowed_in_two_repos(self):
+        cur = self.conn.cursor()
+        other = _insert(cur, f"INSERT INTO {self.cfg.table_repositories} (repo_id, graph_format) "
+                             f"VALUES ('r2', 'v1') RETURNING repo_pk")
+        self._comp("main.main")
+        self._comp("main.main", repo=other)  # no error
+
+    def test_duplicate_component_in_one_repo_rejected(self):
+        self._comp("main.main")
+        with pytest.raises(psycopg2.errors.UniqueViolation):
+            self._comp("main.main")
+
+    def test_same_requirement_id_allowed_in_two_documents(self):
+        cur = self.conn.cursor()
+        other = _insert(cur, f"INSERT INTO {self.cfg.table_srs_documents} "
+                             f"(document_id, file_name, source_type) "
+                             f"VALUES ('d2', 'd2.pdf', 'pdf') RETURNING document_pk")
+        self._req("FR-01.1")
+        self._req("FR-01.1", doc=other)
+
+    def test_invalid_requirement_type_rejected(self):
+        with pytest.raises(psycopg2.errors.CheckViolation):
+            self._req("X", rtype="mystery")
+
+    def test_invalid_component_type_rejected(self):
+        with pytest.raises(psycopg2.errors.CheckViolation):
+            self._comp("m.x", ctype="module")
+
+    def test_unknown_relationship_type_rejected(self):
+        a, b = self._comp("m.a"), self._comp("m.b")
+        with pytest.raises(psycopg2.errors.CheckViolation):
+            self.conn.cursor().execute(
+                f"INSERT INTO {self.cfg.table_relationships} "
+                f"(repo_pk, source_comp_pk, target_comp_pk, rel_type) VALUES (%s,%s,%s,'uses')",
+                (self.repo, a, b))
+
+    def test_relationship_to_missing_component_rejected(self):
+        a = self._comp("m.a")
+        with pytest.raises(psycopg2.errors.ForeignKeyViolation):
+            self.conn.cursor().execute(
+                f"INSERT INTO {self.cfg.table_relationships} "
+                f"(repo_pk, source_comp_pk, target_comp_pk, rel_type) VALUES (%s,%s,99999,'calls')",
+                (self.repo, a))
+
+    def test_wrong_vector_dimension_rejected_by_db(self):
+        comp = self._comp("m.a")
+        with pytest.raises(psycopg2.errors.DataException):
+            self.conn.cursor().execute(
+                f"UPDATE {self.cfg.table_components} SET embedding = %s::vector WHERE comp_pk = %s",
+                ([0.1] * (FAKE_DIM + 1), comp))
+
+    def test_trace_link_requires_its_entities(self):
+        req = self._req("FR-1")
+        # requirement_to_component without a component
+        with pytest.raises(psycopg2.errors.CheckViolation):
+            self.conn.cursor().execute(
+                f"INSERT INTO {self.cfg.table_trace_links} (link_type, req_pk, pipeline_version) "
+                f"VALUES ('requirement_to_component', %s, 'v1')", (req,))
+
+    def test_trace_link_defaults_to_pending_and_is_unique(self):
+        req, comp = self._req("FR-1"), self._comp("m.a")
+        cur = self.conn.cursor()
+        sql = (f"INSERT INTO {self.cfg.table_trace_links} "
+               f"(link_type, req_pk, comp_pk, pipeline_version) "
+               f"VALUES ('requirement_to_component', %s, %s, 'v1') RETURNING status")
+        assert _insert(cur, sql, (req, comp)) == "pending_verification"
+        with pytest.raises(psycopg2.errors.UniqueViolation):
+            cur.execute(sql, (req, comp))  # NULL docstring_pk still counts as equal
+
+    def test_verification_needs_link_or_requirement(self):
+        with pytest.raises(psycopg2.errors.CheckViolation):
+            self.conn.cursor().execute(
+                f"INSERT INTO {self.cfg.table_verifications} (status, pipeline_version) "
+                f"VALUES ('not_found', 'v1')")
+
+    def test_full_text_columns_populated(self):
+        comp = self._comp("helper.process_data")
+        cur = self.conn.cursor()
+        cur.execute(f"SELECT search_tsv @@ plainto_tsquery('simple', 'process data') "
+                    f"FROM {self.cfg.table_components} WHERE comp_pk = %s", (comp,))
+        assert cur.fetchone()[0] is True
+
+    def test_link_types_cover_plan(self):
+        assert set(LINK_TYPES) == {
+            "requirement_to_docstring", "requirement_to_component", "docstring_to_component"}

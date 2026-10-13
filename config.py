@@ -51,6 +51,19 @@ class TraceabilityConfig:
         default_factory=lambda: int(os.getenv("EMBED_BATCH_SIZE", "64"))
     )
 
+    # Load the model from the local Hugging Face cache only (no network).
+    # Set EMBED_ALLOW_DOWNLOAD=1 once to fetch a model that is not cached yet.
+    embed_allow_download: bool = field(
+        default_factory=lambda: os.getenv("EMBED_ALLOW_DOWNLOAD", "0") == "1"
+    )
+
+    # Max characters of source code included in a component's code-embedding
+    # text.  all-MiniLM-L6-v2 truncates at 256 tokens anyway; this keeps the
+    # signature and the start of the body inside that window.
+    embed_code_max_chars: int = field(
+        default_factory=lambda: int(os.getenv("EMBED_CODE_MAX_CHARS", "1500"))
+    )
+
     # ------------------------------------------------------------------
     # PostgreSQL connection
     # ------------------------------------------------------------------
@@ -87,10 +100,12 @@ class TraceabilityConfig:
     table_migrations: str = "tr_schema_migrations"
     table_srs_documents: str = "tr_srs_documents"
     table_requirements: str = "tr_requirements"
+    table_repositories: str = "tr_repositories"
     table_components: str = "tr_code_components"
     table_docstrings: str = "tr_docstrings"
     table_relationships: str = "tr_relationships"
-    table_mappings: str = "tr_mappings"
+    table_trace_links: str = "tr_trace_links"
+    table_verifications: str = "tr_verifications"
 
     # ------------------------------------------------------------------
     # ANN search

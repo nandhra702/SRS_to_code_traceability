@@ -1,0 +1,247 @@
+{
+  "processor.AdvancedProcessor": {
+    "id": "processor.AdvancedProcessor",
+    "component_type": "class",
+    "file_path": "<repo>/processor.py",
+    "relative_path": "processor.py",
+    "depends_on": [
+      "main.utility_function",
+      "processor.AdvancedProcessor.run",
+      "processor.AdvancedProcessor.process_result",
+      "processor.DataProcessor",
+      "helper.HelperClass"
+    ],
+    "start_line": 5,
+    "end_line": 17,
+    "has_docstring": false,
+    "docstring": ""
+  },
+  "processor.AdvancedProcessor.__init__": {
+    "id": "processor.AdvancedProcessor.__init__",
+    "component_type": "method",
+    "file_path": "<repo>/processor.py",
+    "relative_path": "processor.py",
+    "depends_on": [
+      "processor.DataProcessor",
+      "helper.HelperClass"
+    ],
+    "start_line": 7,
+    "end_line": 9,
+    "has_docstring": false,
+    "docstring": ""
+  },
+  "processor.AdvancedProcessor.run": {
+    "id": "processor.AdvancedProcessor.run",
+    "component_type": "method",
+    "file_path": "<repo>/processor.py",
+    "relative_path": "processor.py",
+    "depends_on": [],
+    "start_line": 11,
+    "end_line": 14,
+    "has_docstring": false,
+    "docstring": ""
+  },
+  "processor.AdvancedProcessor.process_result": {
+    "id": "processor.AdvancedProcessor.process_result",
+    "component_type": "method",
+    "file_path": "<repo>/processor.py",
+    "relative_path": "processor.py",
+    "depends_on": [
+      "main.utility_function"
+    ],
+    "start_line": 16,
+    "end_line": 17,
+    "has_docstring": false,
+    "docstring": ""
+  },
+  "test_file.test_function": {
+    "id": "test_file.test_function",
+    "component_type": "function",
+    "file_path": "<repo>/test_file.py",
+    "relative_path": "test_file.py",
+    "depends_on": [],
+    "start_line": 1,
+    "end_line": 2,
+    "has_docstring": false,
+    "docstring": ""
+  },
+  "main.main_function": {
+    "id": "main.main_function",
+    "component_type": "function",
+    "file_path": "<repo>/main.py",
+    "relative_path": "main.py",
+    "depends_on": [
+      "main.utility_function",
+      "helper.HelperClass",
+      "inner.inner_functions.generate_timestamp"
+    ],
+    "start_line": 4,
+    "end_line": 9,
+    "has_docstring": false,
+    "docstring": ""
+  },
+  "main.utility_function": {
+    "id": "main.utility_function",
+    "component_type": "function",
+    "file_path": "<repo>/main.py",
+    "relative_path": "main.py",
+    "depends_on": [],
+    "start_line": 11,
+    "end_line": 12,
+    "has_docstring": false,
+    "docstring": ""
+  },
+  "helper.HelperClass": {
+    "id": "helper.HelperClass",
+    "component_type": "class",
+    "file_path": "<repo>/helper.py",
+    "relative_path": "helper.py",
+    "depends_on": [
+      "helper.HelperClass.process_data",
+      "helper.HelperClass._internal_process",
+      "helper.DataProcessor",
+      "helper.HelperClass.get_result"
+    ],
+    "start_line": 1,
+    "end_line": 14,
+    "has_docstring": false,
+    "docstring": ""
+  },
+  "helper.HelperClass.__init__": {
+    "id": "helper.HelperClass.__init__",
+    "component_type": "method",
+    "file_path": "<repo>/helper.py",
+    "relative_path": "helper.py",
+    "depends_on": [],
+    "start_line": 3,
+    "end_line": 4,
+    "has_docstring": false,
+    "docstring": ""
+  },
+  "helper.HelperClass.process_data": {
+    "id": "helper.HelperClass.process_data",
+    "component_type": "method",
+    "file_path": "<repo>/helper.py",
+    "relative_path": "helper.py",
+    "depends_on": [
+      "helper.DataProcessor"
+    ],
+    "start_line": 6,
+    "end_line": 8,
+    "has_docstring": false,
+    "docstring": ""
+  },
+  "helper.HelperClass._internal_process": {
+    "id": "helper.HelperClass._internal_process",
+    "component_type": "method",
+    "file_path": "<repo>/helper.py",
+    "relative_path": "helper.py",
+    "depends_on": [],
+    "start_line": 10,
+    "end_line": 11,
+    "has_docstring": false,
+    "docstring": ""
+  },
+  "helper.HelperClass.get_result": {
+    "id": "helper.HelperClass.get_result",
+    "component_type": "method",
+    "file_path": "<repo>/helper.py",
+    "relative_path": "helper.py",
+    "depends_on": [],
+    "start_line": 13,
+    "end_line": 14,
+    "has_docstring": false,
+    "docstring": ""
+  },
+  "helper.DataProcessor": {
+    "id": "helper.DataProcessor",
+    "component_type": "class",
+    "file_path": "<repo>/helper.py",
+    "relative_path": "helper.py",
+    "depends_on": [
+      "helper.DataProcessor.process",
+      "helper.DataProcessor._internal_process"
+    ],
+    "start_line": 16,
+    "end_line": 23,
+    "has_docstring": false,
+    "docstring": ""
+  },
+  "helper.DataProcessor.process": {
+    "id": "helper.DataProcessor.process",
+    "component_type": "method",
+    "file_path": "<repo>/helper.py",
+    "relative_path": "helper.py",
+    "depends_on": [],
+    "start_line": 19,
+    "end_line": 20,
+    "has_docstring": false,
+    "docstring": ""
+  },
+  "helper.DataProcessor._internal_process": {
+    "id": "helper.DataProcessor._internal_process",
+    "component_type": "method",
+    "file_path": "<repo>/helper.py",
+    "relative_path": "helper.py",
+    "depends_on": [],
+    "start_line": 22,
+    "end_line": 23,
+    "has_docstring": false,
+    "docstring": ""
+  },
+  "inner.inner_functions.inner_function": {
+    "id": "inner.inner_functions.inner_function",
+    "component_type": "function",
+    "file_path": "<repo>/inner/inner_functions.py",
+    "relative_path": "inner/inner_functions.py",
+    "depends_on": [],
+    "start_line": 1,
+    "end_line": 2,
+    "has_docstring": false,
+    "docstring": ""
+  },
+  "inner.inner_functions.get_random_quote": {
+    "id": "inner.inner_functions.get_random_quote",
+    "component_type": "function",
+    "file_path": "<repo>/inner/inner_functions.py",
+    "relative_path": "inner/inner_functions.py",
+    "depends_on": [],
+    "start_line": 4,
+    "end_line": 5,
+    "has_docstring": false,
+    "docstring": ""
+  },
+  "inner.inner_functions.generate_timestamp": {
+    "id": "inner.inner_functions.generate_timestamp",
+    "component_type": "function",
+    "file_path": "<repo>/inner/inner_functions.py",
+    "relative_path": "inner/inner_functions.py",
+    "depends_on": [],
+    "start_line": 7,
+    "end_line": 8,
+    "has_docstring": false,
+    "docstring": ""
+  },
+  "inner.inner_functions.get_system_status": {
+    "id": "inner.inner_functions.get_system_status",
+    "component_type": "function",
+    "file_path": "<repo>/inner/inner_functions.py",
+    "relative_path": "inner/inner_functions.py",
+    "depends_on": [],
+    "start_line": 10,
+    "end_line": 11,
+    "has_docstring": false,
+    "docstring": ""
+  },
+  "inner.inner_functions.fetch_user_message": {
+    "id": "inner.inner_functions.fetch_user_message",
+    "component_type": "function",
+    "file_path": "<repo>/inner/inner_functions.py",
+    "relative_path": "inner/inner_functions.py",
+    "depends_on": [],
+    "start_line": 13,
+    "end_line": 14,
+    "has_docstring": false,
+    "docstring": ""
+  }
+}

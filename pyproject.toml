@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "traceability"
+version = "1.0.0"
+description = "SRS-to-code traceability: integrates SRS Agent and DocAgent outputs via PostgreSQL + pgvector."
+requires-python = ">=3.10"
+
+# The repository root *is* the package; expose it under the import name
+# `traceability` (what the code and tests import) rather than the directory name.
+[tool.setuptools]
+package-dir = { "traceability" = ".", "traceability.tests" = "tests" }
+packages = ["traceability", "traceability.tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# tests/fixtures/simple_repo is sample *data* (it contains a test_file.py).
+norecursedirs = ["fixtures"]
+markers = [
+    "requires_pg: needs a reachable PostgreSQL + pgvector test database",
+]

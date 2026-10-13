@@ -2,38 +2,27 @@
 Store — PostgreSQL persistence layer for the traceability package.
 
 Uses psycopg2 directly (no ORM) with parameterized SQL throughout.
-All writes are transactional: each public method runs in a single
-BEGIN/COMMIT block and rolls back on any error.
+
+Transaction policy
+------------------
+Every public method runs inside ``Store.transaction()``.  Transactions nest:
+an inner call joins the outer transaction instead of committing on its own.
+The pipeline wraps each dataset (one SRS document, or one repository's
+components + docstrings + relationships) in a single outer transaction, so a
+failed ingestion rolls back completely — nothing is half-written.
 
 Safety rules enforced here
 --------------------------
-- Parameterized queries everywhere — no string interpolation of user data.
+- Parameterized queries for all values; table names come only from config.
 - Credentials never appear in log output; only safe_repr() is logged.
-- No DROP TABLE or TRUNCATE anywhere.
-- Foreign keys are enforced; invalid edge endpoints are logged and skipped,
-  not silently inserted.
-- Unknown relationship types are logged as warnings and skipped (the DB
-  constraint was removed from the schema to allow future types).
-- Vector dimension is verified against the schema before any embedding is
-  stored; a mismatch raises DimensionMismatchError.
-- All public write methods return a count of rows affected.
-
-Public API
-----------
-Store.init_schema(embed_dim)
-Store.record_migration(version, description)
-Store.is_migration_applied(version) -> bool
-Store.upsert_document(record) -> document_pk
-Store.upsert_requirements(document_pk, records, embeddings)
-Store.upsert_components(records, embeddings, repo_path, repo_snapshot)
-Store.upsert_docstrings(component_id, original, generated)
-Store.upsert_relationships(records)
-Store.upsert_mapping(req_pk, component_id, ...)
-Store.get_stale_requirement_embeddings(model_version) -> List[dict]
-Store.get_stale_component_embeddings(model_version) -> List[dict]
-Store.search_requirements(query_vec, top_k, filter_type)
-Store.search_components(query_vec, top_k, filter_type)
-Store.close()
+- No DROP or TRUNCATE.  The only DELETE replaces a repository's derived
+  relationship rows on re-ingest.
+- Rows missing from a re-ingested source are flagged is_current = FALSE, not
+  deleted, so trace links and verification history survive.
+- The schema records its embedding dimension; init_schema() refuses a
+  different one, and every vector is length-checked before it is written.
+- Relationship endpoints must exist in the same repository and the type must
+  be one of DocAgent's five; anything else is skipped and counted.
 """
 
 from __future__ import annotations
@@ -41,19 +30,21 @@ from __future__ import annotations
 import json
 import logging
 from contextlib import contextmanager
-from typing import Any, Dict, Generator, List, Optional, Tuple
+from typing import Any, Dict, Generator, Iterable, List, Optional, Tuple
 
 from .config import TraceabilityConfig
 from .embedder import EmbeddingResult
-from .schema import SCHEMA_VERSION, all_create_ddl, ivfflat_index_ddl
+from .loader import content_hash
+from .schema import (
+    RELATIONSHIP_TYPES,
+    SCHEMA_VERSION,
+    all_create_ddl,
+    create_extension_ddl,
+    create_migrations_table_ddl,
+    vector_index_ddl,
+)
 
 logger = logging.getLogger(__name__)
-
-# Known relationship types from DocAgent V1 — used for validation only,
-# not enforced as a DB CHECK so future types don't break ingestion.
-_KNOWN_REL_TYPES = frozenset(
-    {"calls", "imports", "inherits", "instantiates", "contains"}
-)
 
 try:
     import psycopg2
@@ -63,6 +54,36 @@ try:
     _PG_AVAILABLE = True
 except ImportError:
     _PG_AVAILABLE = False
+
+# Requirement keys stored in dedicated columns; every other key is kept in
+# extraction_meta so no SRS Agent field is dropped.
+_REQ_LIST_COLUMNS = (
+    "actor", "actions", "entities", "inputs", "outputs",
+    "preconditions", "postconditions", "conditions", "constraints",
+    "error_conditions", "domain_terms", "synonyms", "sub_requirements",
+)
+_REQ_COLUMN_KEYS = frozenset(_REQ_LIST_COLUMNS) | {
+    "requirement_id", "id_source", "raw_text", "normalized_text",
+    "retrieval_text", "title", "type", "subtype", "review_required", "source",
+}
+
+# entity name → (table config attribute, primary key column)
+_ENTITIES = {
+    "requirement": ("table_requirements", "req_pk"),
+    "component":   ("table_components", "comp_pk"),
+    "docstring":   ("table_docstrings", "docstring_pk"),
+}
+
+# Keep an existing vector when an upsert carries none (e.g. --no-embed);
+# rebuild-embeddings detects the resulting staleness through the text hash.
+_KEEP_EMBEDDING_SQL = """
+                embedding           = COALESCE(EXCLUDED.embedding, {t}.embedding),
+                embed_model_version = CASE WHEN EXCLUDED.embedding IS NULL
+                                           THEN {t}.embed_model_version
+                                           ELSE EXCLUDED.embed_model_version END,
+                embed_text_hash     = CASE WHEN EXCLUDED.embedding IS NULL
+                                           THEN {t}.embed_text_hash
+                                           ELSE EXCLUDED.embed_text_hash END"""
 
 
 def _require_pg() -> None:
@@ -74,7 +95,11 @@ def _require_pg() -> None:
 
 
 class DimensionMismatchError(ValueError):
-    """Raised when an embedding vector length does not match the schema dimension."""
+    """An embedding vector length does not match the schema's vector dimension."""
+
+
+class SchemaVersionError(RuntimeError):
+    """The database was initialised with an incompatible schema version."""
 
 
 class Store:
@@ -83,14 +108,13 @@ class Store:
 
     Usage::
 
-        cfg = TraceabilityConfig()
         with Store(cfg) as store:
             store.init_schema(embed_dim=384)
-            doc_pk = store.upsert_document(doc_record)
-            store.upsert_requirements(doc_pk, req_records, req_embeddings)
-            store.upsert_components(comp_records, comp_embeddings)
-            store.upsert_docstrings("mod.Foo.bar", original="…", generated=None)
-            store.upsert_relationships(rel_records)
+            with store.transaction():
+                repo_pk = store.upsert_repository({...})
+                comp_pks = store.upsert_components(repo_pk, comps, embeddings)
+                store.upsert_docstrings(comp_pks, docstrings, ds_embeddings)
+                store.replace_relationships(repo_pk, comp_pks, relationships)
     """
 
     def __init__(self, config: TraceabilityConfig) -> None:
@@ -99,9 +123,37 @@ class Store:
         # Never log the DSN — it may contain the password.
         logger.info("Connecting to PostgreSQL: %s", config.safe_repr())
         self._conn = psycopg2.connect(config.build_dsn())
-        register_vector(self._conn)
-        # Cache schema embed_dim once resolved so we can validate vectors.
-        self._schema_embed_dim: Optional[int] = None
+        self._cur = None  # active transaction cursor, if any
+        self._vector_registered = False
+        self._register_vector()
+        self._schema_embed_dim: Optional[int] = self.get_schema_embed_dim()
+
+    # ------------------------------------------------------------------
+    # Transactions
+    # ------------------------------------------------------------------
+
+    @contextmanager
+    def transaction(self) -> Generator:
+        """
+        Yield a RealDictCursor inside one BEGIN/COMMIT block.
+
+        Nested calls reuse the outer cursor and leave commit/rollback to the
+        outermost block, so a multi-step ingestion is all-or-nothing.
+        """
+        if self._cur is not None:
+            yield self._cur
+            return
+        cur = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        self._cur = cur
+        try:
+            yield cur
+            self._conn.commit()
+        except Exception:
+            self._conn.rollback()
+            raise
+        finally:
+            self._cur = None
+            cur.close()
 
     # ------------------------------------------------------------------
     # Schema management
@@ -109,72 +161,85 @@ class Store:
 
     def init_schema(self, embed_dim: int) -> None:
         """
-        Create the pgvector extension, all tables, and btree indexes.
+        Create the pgvector extension and all tables/indexes (idempotent).
 
-        Safe to call on an already-initialised database — all statements use
-        IF NOT EXISTS.  Never drops or truncates any table.
-
-        Args:
-            embed_dim: Embedding vector length from Embedder.dim.
+        Raises:
+            SchemaVersionError:     the database holds a different schema version.
+            DimensionMismatchError: the schema was created with another embed_dim.
         """
-        stmts = all_create_ddl(self._cfg, embed_dim)
-        with self._transaction() as cur:
-            for stmt in stmts:
-                logger.debug("DDL: %.100s…", stmt.replace("\n", " "))
-                cur.execute(stmt)
-        self._schema_embed_dim = embed_dim
-        logger.info("Schema initialised (embed_dim=%d).", embed_dim)
-
-    def build_vector_indexes(self, lists: int = 100) -> None:
-        """
-        Build IVFFlat ANN indexes.  Call after loading data — IVFFlat
-        requires existing rows.
-        """
-        with self._transaction() as cur:
-            for stmt in ivfflat_index_ddl(self._cfg, lists):
-                cur.execute(stmt)
-        logger.info("IVFFlat vector indexes built.")
-
-    # ------------------------------------------------------------------
-    # Migration log
-    # ------------------------------------------------------------------
-
-    def record_migration(self, version: str, description: str = "") -> None:
-        """Insert a migration version record (idempotent)."""
         t = self._cfg.table_migrations
-        sql = f"""
-            INSERT INTO {t} (version, description)
-            VALUES (%(v)s, %(d)s)
-            ON CONFLICT (version) DO NOTHING;
-        """
-        with self._transaction() as cur:
-            cur.execute(sql, {"v": version, "d": description})
-
-    def is_migration_applied(self, version: str) -> bool:
-        """Return True if *version* has already been recorded."""
-        t = self._cfg.table_migrations
-        with self._transaction() as cur:
+        with self.transaction() as cur:
+            cur.execute(create_extension_ddl())
+            cur.execute(create_migrations_table_ddl(self._cfg))
             cur.execute(
-                f"SELECT 1 FROM {t} WHERE version = %(v)s;", {"v": version}
+                "SELECT 1 FROM information_schema.columns "
+                "WHERE table_schema = current_schema() "
+                "AND table_name = %s AND column_name = 'embed_dim';",
+                (t,),
             )
-            return cur.fetchone() is not None
+            if cur.fetchone() is None:
+                raise SchemaVersionError(
+                    f"{t} predates schema 2.0.0 (no embed_dim column). This is a "
+                    "development database from the old schema; reset it before "
+                    "initialising the new one."
+                )
+            cur.execute(f"SELECT version, embed_dim FROM {t};")
+            rows = cur.fetchall()
+            other = sorted(r["version"] for r in rows if r["version"] != SCHEMA_VERSION)
+            if other:
+                raise SchemaVersionError(
+                    f"Database has schema version(s) {other}; this code expects "
+                    f"{SCHEMA_VERSION}. No automatic migration exists yet."
+                )
+            if rows and rows[0]["embed_dim"] != embed_dim:
+                raise DimensionMismatchError(
+                    f"Schema vector columns were created with dimension "
+                    f"{rows[0]['embed_dim']}, but the embedding model produces "
+                    f"{embed_dim}. Use the original model or a fresh database."
+                )
+            for stmt in all_create_ddl(self._cfg, embed_dim):
+                cur.execute(stmt)
+            cur.execute(
+                f"INSERT INTO {t} (version, embed_dim, description) "
+                f"VALUES (%s, %s, %s) ON CONFLICT (version) DO NOTHING;",
+                (SCHEMA_VERSION, embed_dim, "traceability schema"),
+            )
+        self._register_vector()
+        self._schema_embed_dim = embed_dim
+        logger.info("Schema %s ready (embed_dim=%d).", SCHEMA_VERSION, embed_dim)
+
+    def get_schema_embed_dim(self) -> Optional[int]:
+        """Embedding dimension recorded for the current schema, or None."""
+        t = self._cfg.table_migrations
+        with self.transaction() as cur:
+            cur.execute("SELECT to_regclass(%s) AS reg;", (t,))
+            if cur.fetchone()["reg"] is None:
+                return None
+            cur.execute(
+                "SELECT 1 FROM information_schema.columns "
+                "WHERE table_schema = current_schema() "
+                "AND table_name = %s AND column_name = 'embed_dim';",
+                (t,),
+            )
+            if cur.fetchone() is None:
+                return None
+            cur.execute(f"SELECT embed_dim FROM {t} WHERE version = %s;", (SCHEMA_VERSION,))
+            row = cur.fetchone()
+        return row["embed_dim"] if row else None
+
+    def build_vector_indexes(self) -> None:
+        """Build HNSW cosine indexes on all embedding columns (optional)."""
+        with self.transaction() as cur:
+            for stmt in vector_index_ddl(self._cfg):
+                cur.execute(stmt)
+        logger.info("HNSW vector indexes built.")
 
     # ------------------------------------------------------------------
-    # SRS documents
+    # SRS documents + requirements
     # ------------------------------------------------------------------
 
     def upsert_document(self, record: Dict[str, Any]) -> int:
-        """
-        Insert or update an SRS document record.
-
-        Args:
-            record: Dict with keys matching SRSMetadata fields:
-                    document_id, file_name, source_type,
-                    total_requirements, ingest_path (optional).
-
-        Returns:
-            document_pk (BIGINT) of the inserted/updated row.
-        """
+        """Insert or update an SRS document; returns document_pk."""
         t = self._cfg.table_srs_documents
         sql = f"""
             INSERT INTO {t} (document_id, file_name, source_type,
@@ -190,499 +255,426 @@ class Store:
             RETURNING document_pk;
         """
         params = {
-            "document_id":         record.get("document_id") or record.get("file_name", ""),
-            "file_name":           record.get("file_name", ""),
-            "source_type":         record.get("source_type", "unknown"),
-            "total_requirements":  record.get("total_requirements", 0),
-            "ingest_path":         record.get("ingest_path"),
+            "document_id":        record.get("document_id") or record.get("file_name", ""),
+            "file_name":          record.get("file_name", ""),
+            "source_type":        record.get("source_type", "unknown"),
+            "total_requirements": record.get("total_requirements", 0),
+            "ingest_path":        record.get("ingest_path"),
         }
-        with self._transaction() as cur:
+        with self.transaction() as cur:
             cur.execute(sql, params)
-            row = cur.fetchone()
-        pk = row["document_pk"]
-        logger.info(
-            "Upserted document document_pk=%d (%s).",
-            pk,
-            params["file_name"],
-        )
+            pk = cur.fetchone()["document_pk"]
+        logger.info("Upserted document document_pk=%d (%s).", pk, params["document_id"])
         return pk
-
-    # ------------------------------------------------------------------
-    # Requirements
-    # ------------------------------------------------------------------
 
     def upsert_requirements(
         self,
         document_pk: int,
         records: List[Dict[str, Any]],
         embeddings: Optional[Dict[str, EmbeddingResult]] = None,
-    ) -> int:
+    ) -> Dict[str, int]:
         """
-        Insert or update requirements belonging to *document_pk*.
+        Insert or update a document's requirements.
 
-        The natural key is (document_pk, requirement_id).  Re-ingesting the
-        same requirements updates all mutable fields atomically.
-
-        Args:
-            document_pk: FK to tr_srs_documents.document_pk.
-            records:     List of requirement dicts from SRSLoader.
-            embeddings:  Optional {requirement_id: EmbeddingResult}.
+        Requirements of this document that are absent from *records* are
+        flagged is_current = FALSE.
 
         Returns:
-            Number of rows affected.
+            {requirement_id: req_pk}
         """
         t = self._cfg.table_requirements
+        list_cols = ", ".join(_REQ_LIST_COLUMNS)
+        list_vals = ", ".join(f"%({c})s" for c in _REQ_LIST_COLUMNS)
+        list_updates = ",\n                ".join(
+            f"{c} = EXCLUDED.{c}" for c in _REQ_LIST_COLUMNS
+        )
         sql = f"""
             INSERT INTO {t} (
                 document_pk, requirement_id, id_source,
                 raw_text, normalized_text, retrieval_text, title,
-                type, subtype,
-                actor, actions, entities, inputs, outputs,
-                preconditions, postconditions, conditions, constraints,
-                error_conditions, domain_terms, synonyms, sub_requirements,
-                src_section, src_subsection,
-                src_page, src_paragraph, src_table, src_row, src_column,
+                type, subtype, review_required, {list_cols},
+                source_location, extraction_meta, is_current,
                 embedding, embed_model_version, embed_text_hash
             ) VALUES (
                 %(document_pk)s, %(requirement_id)s, %(id_source)s,
                 %(raw_text)s, %(normalized_text)s, %(retrieval_text)s, %(title)s,
-                %(type)s, %(subtype)s,
-                %(actor)s, %(actions)s, %(entities)s, %(inputs)s, %(outputs)s,
-                %(preconditions)s, %(postconditions)s, %(conditions)s, %(constraints)s,
-                %(error_conditions)s, %(domain_terms)s, %(synonyms)s, %(sub_requirements)s,
-                %(src_section)s, %(src_subsection)s,
-                %(src_page)s, %(src_paragraph)s, %(src_table)s, %(src_row)s, %(src_column)s,
+                %(type)s, %(subtype)s, %(review_required)s, {list_vals},
+                %(source_location)s, %(extraction_meta)s, TRUE,
                 %(embedding)s, %(embed_model_version)s, %(embed_text_hash)s
             )
             ON CONFLICT (document_pk, requirement_id) DO UPDATE SET
-                id_source           = EXCLUDED.id_source,
-                raw_text            = EXCLUDED.raw_text,
-                normalized_text     = EXCLUDED.normalized_text,
-                retrieval_text      = EXCLUDED.retrieval_text,
-                title               = EXCLUDED.title,
-                type                = EXCLUDED.type,
-                subtype             = EXCLUDED.subtype,
-                actor               = EXCLUDED.actor,
-                actions             = EXCLUDED.actions,
-                entities            = EXCLUDED.entities,
-                inputs              = EXCLUDED.inputs,
-                outputs             = EXCLUDED.outputs,
-                preconditions       = EXCLUDED.preconditions,
-                postconditions      = EXCLUDED.postconditions,
-                conditions          = EXCLUDED.conditions,
-                constraints         = EXCLUDED.constraints,
-                error_conditions    = EXCLUDED.error_conditions,
-                domain_terms        = EXCLUDED.domain_terms,
-                synonyms            = EXCLUDED.synonyms,
-                sub_requirements    = EXCLUDED.sub_requirements,
-                src_section         = EXCLUDED.src_section,
-                src_subsection      = EXCLUDED.src_subsection,
-                src_page            = EXCLUDED.src_page,
-                src_paragraph       = EXCLUDED.src_paragraph,
-                src_table           = EXCLUDED.src_table,
-                src_row             = EXCLUDED.src_row,
-                src_column          = EXCLUDED.src_column,
-                embedding           = EXCLUDED.embedding,
-                embed_model_version = EXCLUDED.embed_model_version,
-                embed_text_hash     = EXCLUDED.embed_text_hash,
-                updated_at          = NOW()
+                id_source        = EXCLUDED.id_source,
+                raw_text         = EXCLUDED.raw_text,
+                normalized_text  = EXCLUDED.normalized_text,
+                retrieval_text   = EXCLUDED.retrieval_text,
+                title            = EXCLUDED.title,
+                type             = EXCLUDED.type,
+                subtype          = EXCLUDED.subtype,
+                review_required  = EXCLUDED.review_required,
+                {list_updates},
+                source_location  = EXCLUDED.source_location,
+                extraction_meta  = EXCLUDED.extraction_meta,
+                is_current       = TRUE,
+                {_KEEP_EMBEDDING_SQL.format(t=t).strip()},
+                updated_at       = NOW()
             RETURNING req_pk;
         """
-        rows = 0
-        with self._transaction() as cur:
+        pks: Dict[str, int] = {}
+        with self.transaction() as cur:
             for rec in records:
-                src = rec.get("source") or {}
                 emb = (embeddings or {}).get(rec["requirement_id"])
                 self._validate_embedding_dim(emb)
-                params = self._req_params(document_pk, rec, src, emb)
-                cur.execute(sql, params)
-                if cur.fetchone() is not None:
-                    rows += 1
-        logger.info("Upserted %d requirement(s) into document_pk=%d.", rows, document_pk)
-        return rows
+                cur.execute(sql, self._req_params(document_pk, rec, emb))
+                pks[rec["requirement_id"]] = cur.fetchone()["req_pk"]
+            cur.execute(
+                f"UPDATE {t} SET is_current = FALSE, updated_at = NOW() "
+                f"WHERE document_pk = %s AND is_current "
+                f"AND NOT (requirement_id = ANY(%s));",
+                (document_pk, list(pks)),
+            )
+            if cur.rowcount:
+                logger.info("Flagged %d requirement(s) no longer in the document.", cur.rowcount)
+        logger.info("Upserted %d requirement(s) into document_pk=%d.", len(pks), document_pk)
+        return pks
 
     # ------------------------------------------------------------------
-    # Code components
+    # Repositories, components, docstrings, relationships
     # ------------------------------------------------------------------
+
+    def upsert_repository(self, record: Dict[str, Any]) -> int:
+        """Insert or update a repository; returns repo_pk."""
+        t = self._cfg.table_repositories
+        sql = f"""
+            INSERT INTO {t} (repo_id, repo_path, repo_snapshot, graph_path, graph_format)
+            VALUES (%(repo_id)s, %(repo_path)s, %(repo_snapshot)s,
+                    %(graph_path)s, %(graph_format)s)
+            ON CONFLICT (repo_id) DO UPDATE SET
+                repo_path     = EXCLUDED.repo_path,
+                repo_snapshot = EXCLUDED.repo_snapshot,
+                graph_path    = EXCLUDED.graph_path,
+                graph_format  = EXCLUDED.graph_format,
+                updated_at    = NOW()
+            RETURNING repo_pk;
+        """
+        params = {
+            "repo_id":       record["repo_id"],
+            "repo_path":     record.get("repo_path"),
+            "repo_snapshot": record.get("repo_snapshot"),
+            "graph_path":    record.get("graph_path"),
+            "graph_format":  record.get("graph_format", "legacy"),
+        }
+        with self.transaction() as cur:
+            cur.execute(sql, params)
+            pk = cur.fetchone()["repo_pk"]
+        logger.info("Upserted repository repo_pk=%d (%s).", pk, params["repo_id"])
+        return pk
 
     def upsert_components(
         self,
+        repo_pk: int,
         records: List[Dict[str, Any]],
         embeddings: Optional[Dict[str, EmbeddingResult]] = None,
-        *,
-        repo_path: Optional[str] = None,
-        repo_snapshot: Optional[str] = None,
-    ) -> int:
+    ) -> Dict[str, int]:
         """
-        Insert or update code components.
+        Insert or update a repository's components.
 
-        Args:
-            records:       List of component dicts from GraphLoader.
-            embeddings:    Optional {component_id: EmbeddingResult}.
-            repo_path:     Absolute path to the repository at ingest time.
-            repo_snapshot: Git commit SHA or tag (NULL if unknown).
+        Components of this repository absent from *records* are flagged
+        is_current = FALSE.
 
         Returns:
-            Number of rows affected.
+            {component_id: comp_pk}
         """
         t = self._cfg.table_components
         sql = f"""
             INSERT INTO {t} (
-                component_id, component_type,
-                repo_path, repo_snapshot,
+                repo_pk, component_id, component_type,
                 file_path, relative_path, start_line, end_line,
-                signature, return_type, containing_class,
-                parameters, depends_on, source_code,
+                signature, parameters, return_type, containing_class, depends_on,
+                source_code, source_hash, is_current,
                 embedding, embed_model_version, embed_text_hash
             ) VALUES (
-                %(component_id)s, %(component_type)s,
-                %(repo_path)s, %(repo_snapshot)s,
+                %(repo_pk)s, %(component_id)s, %(component_type)s,
                 %(file_path)s, %(relative_path)s, %(start_line)s, %(end_line)s,
-                %(signature)s, %(return_type)s, %(containing_class)s,
-                %(parameters)s, %(depends_on)s, %(source_code)s,
+                %(signature)s, %(parameters)s, %(return_type)s, %(containing_class)s,
+                %(depends_on)s, %(source_code)s, %(source_hash)s, TRUE,
                 %(embedding)s, %(embed_model_version)s, %(embed_text_hash)s
             )
-            ON CONFLICT (component_id) DO UPDATE SET
-                component_type      = EXCLUDED.component_type,
-                repo_path           = EXCLUDED.repo_path,
-                repo_snapshot       = EXCLUDED.repo_snapshot,
-                file_path           = EXCLUDED.file_path,
-                relative_path       = EXCLUDED.relative_path,
-                start_line          = EXCLUDED.start_line,
-                end_line            = EXCLUDED.end_line,
-                signature           = EXCLUDED.signature,
-                return_type         = EXCLUDED.return_type,
-                containing_class    = EXCLUDED.containing_class,
-                parameters          = EXCLUDED.parameters,
-                depends_on          = EXCLUDED.depends_on,
-                source_code         = EXCLUDED.source_code,
-                embedding           = EXCLUDED.embedding,
-                embed_model_version = EXCLUDED.embed_model_version,
-                embed_text_hash     = EXCLUDED.embed_text_hash,
-                updated_at          = NOW();
+            ON CONFLICT (repo_pk, component_id) DO UPDATE SET
+                component_type   = EXCLUDED.component_type,
+                file_path        = EXCLUDED.file_path,
+                relative_path    = EXCLUDED.relative_path,
+                start_line       = EXCLUDED.start_line,
+                end_line         = EXCLUDED.end_line,
+                signature        = EXCLUDED.signature,
+                parameters       = EXCLUDED.parameters,
+                return_type      = EXCLUDED.return_type,
+                containing_class = EXCLUDED.containing_class,
+                depends_on       = EXCLUDED.depends_on,
+                source_code      = EXCLUDED.source_code,
+                source_hash      = EXCLUDED.source_hash,
+                is_current       = TRUE,
+                {_KEEP_EMBEDDING_SQL.format(t=t).strip()},
+                updated_at       = NOW()
+            RETURNING comp_pk;
         """
-        rows = 0
-        with self._transaction() as cur:
+        pks: Dict[str, int] = {}
+        with self.transaction() as cur:
             for rec in records:
                 emb = (embeddings or {}).get(rec["id"])
                 self._validate_embedding_dim(emb)
-                params = self._comp_params(rec, emb, repo_path, repo_snapshot)
-                cur.execute(sql, params)
-                rows += cur.rowcount
-        logger.info("Upserted %d component(s).", rows)
-        return rows
-
-    # ------------------------------------------------------------------
-    # Docstrings
-    # ------------------------------------------------------------------
+                cur.execute(sql, self._comp_params(repo_pk, rec, emb))
+                pks[rec["id"]] = cur.fetchone()["comp_pk"]
+            cur.execute(
+                f"UPDATE {t} SET is_current = FALSE, updated_at = NOW() "
+                f"WHERE repo_pk = %s AND is_current AND NOT (component_id = ANY(%s));",
+                (repo_pk, list(pks)),
+            )
+            if cur.rowcount:
+                logger.info("Flagged %d component(s) no longer in the graph.", cur.rowcount)
+        logger.info("Upserted %d component(s) into repo_pk=%d.", len(pks), repo_pk)
+        return pks
 
     def upsert_docstrings(
         self,
-        component_id: str,
+        comp_pks: Dict[str, int],
+        records: List[Dict[str, Any]],
+        embeddings: Optional[Dict[Tuple[str, str], EmbeddingResult]] = None,
         *,
-        original: Optional[str] = None,
-        generated: Optional[str] = None,
+        observed_kinds: Iterable[str] = ("existing",),
     ) -> int:
         """
-        Insert or update docstrings for a component.
+        Insert or update docstring records (from GraphLoader.docstring_records).
 
-        Only inserts a row for a kind when the content is not None and not
-        empty, preserving the distinction between "no docstring present in
-        source" and "empty generated docstring".
+        Docstrings of the given components whose kind is in *observed_kinds*
+        but which are absent from *records* are flagged is_current = FALSE.
+        Kinds this ingestion did not look for (e.g. 'generated' when no
+        post-run source tree was supplied) are left untouched.
 
         Args:
-            component_id: Must already exist in tr_code_components.
-            original:     Docstring from source (has_docstring=True in DocAgent).
-            generated:    Docstring produced by DocAgent's Writer agent.
+            comp_pks:   {component_id: comp_pk} from upsert_components().
+            records:    [{"component_id", "kind", "content", "provenance"}].
+            embeddings: {(component_id, kind): EmbeddingResult}.
 
         Returns:
-            Number of rows affected (0-2).
+            Number of docstrings upserted.
         """
         t = self._cfg.table_docstrings
         sql = f"""
-            INSERT INTO {t} (component_id, docstring_kind, content)
-            VALUES (%(component_id)s, %(kind)s, %(content)s)
-            ON CONFLICT (component_id, docstring_kind) DO UPDATE SET
-                content    = EXCLUDED.content,
-                updated_at = NOW();
+            INSERT INTO {t} (comp_pk, docstring_kind, content, content_hash,
+                             provenance, is_current,
+                             embedding, embed_model_version, embed_text_hash)
+            VALUES (%(comp_pk)s, %(kind)s, %(content)s, %(content_hash)s,
+                    %(provenance)s, TRUE,
+                    %(embedding)s, %(embed_model_version)s, %(embed_text_hash)s)
+            ON CONFLICT (comp_pk, docstring_kind) DO UPDATE SET
+                content      = EXCLUDED.content,
+                content_hash = EXCLUDED.content_hash,
+                provenance   = EXCLUDED.provenance,
+                is_current   = TRUE,
+                {_KEEP_EMBEDDING_SQL.format(t=t).strip()},
+                updated_at   = NOW();
         """
-        rows = 0
-        with self._transaction() as cur:
-            for kind, content in [("original", original), ("generated", generated)]:
-                if content is not None and content.strip():
-                    cur.execute(sql, {
-                        "component_id": component_id,
-                        "kind": kind,
-                        "content": content,
-                    })
-                    rows += cur.rowcount
-        return rows
+        seen: List[Tuple[int, str]] = []
+        with self.transaction() as cur:
+            for rec in records:
+                comp_pk = comp_pks.get(rec["component_id"])
+                if comp_pk is None:
+                    raise KeyError(
+                        f"Docstring for unknown component {rec['component_id']!r}; "
+                        "upsert its component first."
+                    )
+                emb = (embeddings or {}).get((rec["component_id"], rec["kind"]))
+                self._validate_embedding_dim(emb)
+                cur.execute(sql, {
+                    "comp_pk":             comp_pk,
+                    "kind":                rec["kind"],
+                    "content":             rec["content"],
+                    "content_hash":        content_hash(rec["content"]),
+                    "provenance":          json.dumps(rec.get("provenance") or {}),
+                    "embedding":           emb.vector if emb else None,
+                    "embed_model_version": emb.model_version if emb else None,
+                    "embed_text_hash":     emb.text_hash if emb else None,
+                })
+                seen.append((comp_pk, rec["kind"]))
+            cur.execute(
+                f"""
+                UPDATE {t} SET is_current = FALSE, updated_at = NOW()
+                WHERE is_current
+                  AND comp_pk = ANY(%(comp_pks)s)
+                  AND docstring_kind = ANY(%(kinds)s)
+                  AND (comp_pk, docstring_kind) NOT IN (
+                      SELECT * FROM unnest(%(seen_pks)s::bigint[], %(seen_kinds)s::text[]));
+                """,
+                {
+                    "comp_pks":   list(comp_pks.values()),
+                    "kinds":      list(observed_kinds),
+                    "seen_pks":   [p for p, _ in seen],
+                    "seen_kinds": [k for _, k in seen],
+                },
+            )
+        logger.info("Upserted %d docstring(s).", len(seen))
+        return len(seen)
 
-    # ------------------------------------------------------------------
-    # Relationships
-    # ------------------------------------------------------------------
-
-    def upsert_relationships(
+    def replace_relationships(
         self,
+        repo_pk: int,
+        comp_pks: Dict[str, int],
         records: List[Dict[str, str]],
-    ) -> Tuple[int, int]:
+    ) -> Tuple[int, Dict[str, int]]:
         """
-        Insert typed relationships.
+        Replace a repository's typed relationships with *records*.
 
-        Runs in a single transaction.  Records with unknown endpoints or
-        unknown rel_type values are logged and skipped — they do not abort
-        the transaction.
-
-        Args:
-            records: List of {"source": str, "target": str, "type": str}.
+        Relationships are derived data with nothing referencing them, so the
+        repository's previous edges are deleted and the current set inserted.
+        Edges whose endpoints are not components of this repository, or whose
+        type is not one of DocAgent's five, are skipped and counted.
 
         Returns:
-            (inserted, skipped) counts.
+            (inserted, {"unknown_endpoint": n, "unknown_type": n})
         """
         t = self._cfg.table_relationships
-        comp = self._cfg.table_components
+        skipped = {"unknown_endpoint": 0, "unknown_type": 0}
+        rows: List[Tuple[int, int, int, str]] = []
+        for rec in records:
+            src, tgt, rtype = rec["source"], rec["target"], rec["type"]
+            if rtype not in RELATIONSHIP_TYPES:
+                logger.warning("Unknown relationship type %r (%s -> %s); skipped.", rtype, src, tgt)
+                skipped["unknown_type"] += 1
+            elif src not in comp_pks or tgt not in comp_pks:
+                logger.warning("Relationship endpoint not in repository (%s -> %s); skipped.", src, tgt)
+                skipped["unknown_endpoint"] += 1
+            else:
+                rows.append((repo_pk, comp_pks[src], comp_pks[tgt], rtype))
 
-        sql_insert = f"""
-            INSERT INTO {t} (source_id, target_id, rel_type)
-            VALUES (%(source)s, %(target)s, %(type)s)
-            ON CONFLICT (source_id, target_id, rel_type) DO NOTHING;
+        with self.transaction() as cur:
+            cur.execute(f"DELETE FROM {t} WHERE repo_pk = %s;", (repo_pk,))
+            psycopg2.extras.execute_values(
+                cur,
+                f"INSERT INTO {t} (repo_pk, source_comp_pk, target_comp_pk, rel_type) "
+                f"VALUES %s ON CONFLICT DO NOTHING;",
+                rows,
+            )
+        logger.info("Relationships: %d stored, skipped %s.", len(rows), skipped)
+        return len(rows), skipped
+
+    # ------------------------------------------------------------------
+    # Embedding maintenance (rebuild-embeddings)
+    # ------------------------------------------------------------------
+
+    def get_embedding_rows(self, entity: str) -> List[Dict[str, Any]]:
         """
+        All current rows of *entity* with the fields needed to rebuild their
+        embedding text, plus the stored embed_model_version / embed_text_hash
+        and a has_embedding flag.  The caller decides what is stale.
+        """
+        cfg = self._cfg
+        if entity == "requirement":
+            cols = ", ".join(("req_pk", "requirement_id", "title", "retrieval_text",
+                              "normalized_text", "raw_text") + _REQ_LIST_COLUMNS)
+            sql = f"SELECT {cols}, {{emb}} FROM {cfg.table_requirements} WHERE is_current;"
+        elif entity == "component":
+            sql = (f"SELECT comp_pk, component_id, component_type, signature, source_code, "
+                   f"{{emb}} FROM {cfg.table_components} WHERE is_current;")
+        elif entity == "docstring":
+            sql = (f"SELECT d.docstring_pk, d.content, c.component_id, c.component_type, "
+                   f"c.signature, {{emb}} FROM {cfg.table_docstrings} d "
+                   f"JOIN {cfg.table_components} c ON c.comp_pk = d.comp_pk "
+                   f"WHERE d.is_current;")
+        else:
+            raise ValueError(f"Unknown entity {entity!r}")
+        prefix = "d." if entity == "docstring" else ""
+        emb = (f"{prefix}embed_model_version, {prefix}embed_text_hash, "
+               f"{prefix}embedding IS NOT NULL AS has_embedding")
+        with self.transaction() as cur:
+            cur.execute(sql.format(emb=emb))
+            return [dict(r) for r in cur.fetchall()]
 
-        inserted = 0
-        skipped = 0
-
-        with self._transaction() as cur:
-            # Fetch known IDs once inside the same transaction.
-            # RealDictCursor rows are dicts, so key by column name.
-            cur.execute(f"SELECT component_id FROM {comp};")
-            known_ids = {row["component_id"] for row in cur.fetchall()}
-
-            for rec in records:
-                src, tgt, rtype = rec["source"], rec["target"], rec["type"]
-
-                if src not in known_ids or tgt not in known_ids:
-                    logger.warning(
-                        "Skipping relationship: unknown endpoint(s) source=%r target=%r",
-                        src, tgt,
-                    )
-                    skipped += 1
-                    continue
-
-                if rtype not in _KNOWN_REL_TYPES:
-                    logger.warning(
-                        "Unknown relationship type %r (source=%r target=%r); skipping.",
-                        rtype, src, tgt,
-                    )
-                    skipped += 1
-                    continue
-
-                cur.execute(sql_insert, rec)
-                inserted += cur.rowcount
-
-        logger.info("Relationships: %d inserted, %d skipped.", inserted, skipped)
-        return inserted, skipped
-
-    # ------------------------------------------------------------------
-    # Mappings
-    # ------------------------------------------------------------------
-
-    def upsert_mapping(
-        self,
-        req_pk: int,
-        component_id: str,
-        *,
-        confidence_score: Optional[float] = None,
-        mapping_type: str = "vector_search",
-        rationale: Optional[str] = None,
+    def update_embedding(
+        self, entity: str, pk: int, result: Optional[EmbeddingResult]
     ) -> None:
-        """Insert or update a traceability mapping."""
-        t = self._cfg.table_mappings
-        sql = f"""
-            INSERT INTO {t} (req_pk, component_id, confidence_score,
-                             mapping_type, rationale)
-            VALUES (%(req_pk)s, %(comp)s, %(score)s, %(mtype)s, %(rationale)s)
-            ON CONFLICT (req_pk, component_id) DO UPDATE SET
-                confidence_score = EXCLUDED.confidence_score,
-                mapping_type     = EXCLUDED.mapping_type,
-                rationale        = EXCLUDED.rationale,
-                updated_at       = NOW();
-        """
-        with self._transaction() as cur:
-            cur.execute(sql, {
-                "req_pk": req_pk,
-                "comp": component_id,
-                "score": confidence_score,
-                "mtype": mapping_type,
-                "rationale": rationale,
-            })
-
-    # ------------------------------------------------------------------
-    # Stale embedding queries (for rebuild-embeddings command)
-    # ------------------------------------------------------------------
-
-    def get_stale_requirement_embeddings(
-        self, current_model_version: str
-    ) -> List[Dict[str, Any]]:
-        """
-        Return requirements whose embedding is NULL or was generated with a
-        different model version.
-
-        Returns:
-            List of dicts with keys: req_pk, requirement_id, document_pk,
-            retrieval_text, title, normalized_text, domain_terms, synonyms.
-        """
-        t = self._cfg.table_requirements
-        sql = f"""
-            SELECT req_pk, requirement_id, document_pk,
-                   retrieval_text, title, normalized_text,
-                   domain_terms, synonyms
-            FROM {t}
-            WHERE embedding IS NULL
-               OR embed_model_version IS NULL
-               OR embed_model_version != %(v)s;
-        """
-        with self._transaction() as cur:
-            cur.execute(sql, {"v": current_model_version})
-            # RealDictCursor rows are already dict-like; cast to plain dict
-            return [dict(row) for row in cur.fetchall()]
-
-    def get_stale_component_embeddings(
-        self, current_model_version: str
-    ) -> List[Dict[str, Any]]:
-        """
-        Return components whose embedding is NULL or stale.
-
-        Returns:
-            List of dicts with keys: component_id, signature, docstring,
-            source_code.
-        """
-        t = self._cfg.table_components
-        ds = self._cfg.table_docstrings
-        sql = f"""
-            SELECT c.component_id, c.signature, c.source_code,
-                   d.content AS docstring
-            FROM {t} c
-            LEFT JOIN {ds} d
-                ON d.component_id = c.component_id
-               AND d.docstring_kind = 'generated'
-            WHERE c.embedding IS NULL
-               OR c.embed_model_version IS NULL
-               OR c.embed_model_version != %(v)s;
-        """
-        with self._transaction() as cur:
-            cur.execute(sql, {"v": current_model_version})
-            return [dict(row) for row in cur.fetchall()]
-
-    def update_requirement_embedding(
-        self, req_pk: int, result: EmbeddingResult
-    ) -> None:
-        """Update the embedding for a single requirement row."""
+        """Set (or, with result=None, clear) one row's embedding."""
+        table_attr, pk_col = _ENTITIES[entity]
+        t = getattr(self._cfg, table_attr)
         self._validate_embedding_dim(result)
-        t = self._cfg.table_requirements
-        sql = f"""
-            UPDATE {t}
-            SET embedding           = %(vec)s,
-                embed_model_version = %(version)s,
-                embed_text_hash     = %(hash)s,
-                updated_at          = NOW()
-            WHERE req_pk = %(pk)s;
-        """
-        with self._transaction() as cur:
-            cur.execute(sql, {
-                "vec": result.vector,
-                "version": result.model_version,
-                "hash": result.text_hash,
-                "pk": req_pk,
-            })
-
-    def update_component_embedding(
-        self, component_id: str, result: EmbeddingResult
-    ) -> None:
-        """Update the embedding for a single component row."""
-        self._validate_embedding_dim(result)
-        t = self._cfg.table_components
-        sql = f"""
-            UPDATE {t}
-            SET embedding           = %(vec)s,
-                embed_model_version = %(version)s,
-                embed_text_hash     = %(hash)s,
-                updated_at          = NOW()
-            WHERE component_id = %(cid)s;
-        """
-        with self._transaction() as cur:
-            cur.execute(sql, {
-                "vec": result.vector,
-                "version": result.model_version,
-                "hash": result.text_hash,
-                "cid": component_id,
-            })
+        with self.transaction() as cur:
+            cur.execute(
+                f"UPDATE {t} SET embedding = %(vec)s, embed_model_version = %(ver)s, "
+                f"embed_text_hash = %(hash)s, updated_at = NOW() WHERE {pk_col} = %(pk)s;",
+                {
+                    "vec":  result.vector if result else None,
+                    "ver":  result.model_version if result else None,
+                    "hash": result.text_hash if result else None,
+                    "pk":   pk,
+                },
+            )
 
     # ------------------------------------------------------------------
-    # Vector search
+    # Vector search (exact; Phase 2 adds lexical + hybrid retrieval)
     # ------------------------------------------------------------------
 
     def search_requirements(
-        self,
-        query_vec: List[float],
-        top_k: Optional[int] = None,
-        *,
-        filter_type: Optional[str] = None,
+        self, query_vec: List[float], top_k: Optional[int] = None, *,
+        document_pk: Optional[int] = None, model_version: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
-        """
-        ANN search over requirement embeddings.
-
-        Returns dicts with: req_pk, requirement_id, document_pk, title,
-        type, subtype, raw_text, retrieval_text, distance.
-        Sorted by cosine distance ascending (most similar first).
-        """
-        k = top_k or self._cfg.top_k
+        """Cosine-distance search over current requirement embeddings."""
         t = self._cfg.table_requirements
-        where = "WHERE embedding IS NOT NULL"
-        if filter_type:
-            where += " AND type = %(filter_type)s"
-        sql = f"""
-            SELECT req_pk, requirement_id, document_pk, title,
-                   type, subtype, raw_text, retrieval_text,
-                   embedding <=> %(vec)s::vector AS distance
-            FROM {t}
-            {where}
-            ORDER BY distance ASC
-            LIMIT %(k)s;
-        """
-        with self._transaction() as cur:
-            cur.execute(sql, {"vec": query_vec, "k": k, "filter_type": filter_type})
-            return [dict(row) for row in cur.fetchall()]
+        return self._vector_search(
+            f"SELECT req_pk, requirement_id, document_pk, title, type, subtype, raw_text, "
+            f"embedding <=> %(vec)s::vector AS distance FROM {t}",
+            "document_pk", document_pk, query_vec, top_k, model_version,
+        )
 
     def search_components(
-        self,
-        query_vec: List[float],
-        top_k: Optional[int] = None,
-        *,
-        filter_type: Optional[str] = None,
+        self, query_vec: List[float], top_k: Optional[int] = None, *,
+        repo_pk: Optional[int] = None, model_version: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
-        """
-        ANN search over component embeddings.
-
-        Returns dicts with: component_id, component_type, relative_path,
-        signature, distance.
-        Sorted by cosine distance ascending.
-        """
-        k = top_k or self._cfg.top_k
+        """Cosine-distance search over current component (code) embeddings."""
         t = self._cfg.table_components
-        where = "WHERE embedding IS NOT NULL"
-        if filter_type:
-            where += " AND component_type = %(filter_type)s"
-        sql = f"""
-            SELECT component_id, component_type, relative_path, signature,
-                   embedding <=> %(vec)s::vector AS distance
-            FROM {t}
-            {where}
-            ORDER BY distance ASC
-            LIMIT %(k)s;
-        """
-        with self._transaction() as cur:
-            cur.execute(sql, {"vec": query_vec, "k": k, "filter_type": filter_type})
-            return [dict(row) for row in cur.fetchall()]
+        return self._vector_search(
+            f"SELECT comp_pk, repo_pk, component_id, component_type, relative_path, "
+            f"start_line, end_line, signature, "
+            f"embedding <=> %(vec)s::vector AS distance FROM {t}",
+            "repo_pk", repo_pk, query_vec, top_k, model_version,
+        )
+
+    def search_docstrings(
+        self, query_vec: List[float], top_k: Optional[int] = None, *,
+        repo_pk: Optional[int] = None, model_version: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Cosine-distance search over current docstring embeddings."""
+        ds, comp = self._cfg.table_docstrings, self._cfg.table_components
+        return self._vector_search(
+            f"SELECT * FROM (SELECT d.docstring_pk, d.docstring_kind, d.content, "
+            f"d.is_current, d.embedding, d.embed_model_version, "
+            f"c.comp_pk, c.repo_pk, c.component_id, c.relative_path, "
+            f"d.embedding <=> %(vec)s::vector AS distance "
+            f"FROM {ds} d JOIN {comp} c ON c.comp_pk = d.comp_pk) s",
+            "repo_pk", repo_pk, query_vec, top_k, model_version,
+        )
+
+    def _vector_search(
+        self, select_sql: str, scope_col: str, scope_val: Optional[int],
+        query_vec: List[float], top_k: Optional[int], model_version: Optional[str],
+    ) -> List[Dict[str, Any]]:
+        if len(query_vec) != (self._schema_embed_dim or len(query_vec)):
+            raise DimensionMismatchError(
+                f"Query vector length {len(query_vec)} does not match schema "
+                f"dimension {self._schema_embed_dim}."
+            )
+        where = ["embedding IS NOT NULL", "is_current"]
+        if scope_val is not None:
+            where.append(f"{scope_col} = %(scope)s")
+        if model_version is not None:
+            where.append("embed_model_version = %(mv)s")
+        sql = (f"{select_sql} WHERE {' AND '.join(where)} "
+               f"ORDER BY distance ASC LIMIT %(k)s;")
+        with self.transaction() as cur:
+            cur.execute(sql, {"vec": list(query_vec), "k": top_k or self._cfg.top_k,
+                              "scope": scope_val, "mv": model_version})
+            rows = [dict(r) for r in cur.fetchall()]
+        for r in rows:
+            r.pop("embedding", None)  # only selected for the subquery filter
+        return rows
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -703,39 +695,27 @@ class Store:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    @contextmanager
-    def _transaction(self) -> Generator:
-        """
-        Yield a RealDictCursor inside a single BEGIN/COMMIT block.
-
-        Rolls back and re-raises on any exception so the caller never sees a
-        half-committed state.
-        """
-        cur = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    def _register_vector(self) -> None:
+        """Register the pgvector type adapter once the extension exists."""
+        if self._vector_registered:
+            return
         try:
-            yield cur
-            self._conn.commit()
-        except Exception:
-            self._conn.rollback()
-            raise
+            register_vector(self._conn)
+            self._vector_registered = True
+        except psycopg2.ProgrammingError:
+            # Extension not created yet — init_schema() will retry.
+            logger.debug("pgvector type not found; deferring registration.")
         finally:
-            cur.close()
+            if self._cur is None:
+                self._conn.rollback()  # close the implicit read transaction
 
-    def _validate_embedding_dim(
-        self, result: Optional[EmbeddingResult]
-    ) -> None:
-        """
-        Raise DimensionMismatchError when the vector length does not match the
-        schema dimension.  No-ops when result is None or schema_dim is unknown.
-        """
+    def _validate_embedding_dim(self, result: Optional[EmbeddingResult]) -> None:
         if result is None or self._schema_embed_dim is None:
             return
-        actual = len(result.vector)
-        if actual != self._schema_embed_dim:
+        if len(result.vector) != self._schema_embed_dim:
             raise DimensionMismatchError(
-                f"Embedding vector length {actual} does not match schema "
-                f"dimension {self._schema_embed_dim}.  Re-run init_schema() "
-                f"with the correct embed_dim, or rebuild embeddings."
+                f"Embedding vector length {len(result.vector)} does not match "
+                f"schema dimension {self._schema_embed_dim}."
             )
 
     @staticmethod
@@ -743,70 +723,51 @@ class Store:
         return json.dumps(value, ensure_ascii=False)
 
     def _req_params(
-        self,
-        document_pk: int,
-        rec: Dict[str, Any],
-        src: Dict[str, Any],
-        emb: Optional[EmbeddingResult],
+        self, document_pk: int, rec: Dict[str, Any], emb: Optional[EmbeddingResult]
     ) -> Dict[str, Any]:
-        return {
-            "document_pk":          document_pk,
-            "requirement_id":       rec["requirement_id"],
-            "id_source":            rec.get("id_source", "generated"),
-            "raw_text":             rec.get("raw_text", ""),
-            "normalized_text":      rec.get("normalized_text", ""),
-            "retrieval_text":       rec.get("retrieval_text", ""),
-            "title":                rec.get("title", ""),
-            "type":                 rec.get("type", "other"),
-            "subtype":              rec.get("subtype", "general"),
-            "actor":                self._jsonb(rec.get("actor", [])),
-            "actions":              self._jsonb(rec.get("actions", [])),
-            "entities":             self._jsonb(rec.get("entities", [])),
-            "inputs":               self._jsonb(rec.get("inputs", [])),
-            "outputs":              self._jsonb(rec.get("outputs", [])),
-            "preconditions":        self._jsonb(rec.get("preconditions", [])),
-            "postconditions":       self._jsonb(rec.get("postconditions", [])),
-            "conditions":           self._jsonb(rec.get("conditions", [])),
-            "constraints":          self._jsonb(rec.get("constraints", [])),
-            "error_conditions":     self._jsonb(rec.get("error_conditions", [])),
-            "domain_terms":         self._jsonb(rec.get("domain_terms", [])),
-            "synonyms":             self._jsonb(rec.get("synonyms", [])),
-            "sub_requirements":     self._jsonb(rec.get("sub_requirements", [])),
-            "src_section":          src.get("section"),
-            "src_subsection":       src.get("subsection"),
-            "src_page":             src.get("page"),
-            "src_paragraph":        src.get("paragraph"),
-            "src_table":            src.get("table"),
-            "src_row":              src.get("row"),
-            "src_column":           src.get("column"),
-            "embedding":            emb.vector if emb else None,
-            "embed_model_version":  emb.model_version if emb else None,
-            "embed_text_hash":      emb.text_hash if emb else None,
+        params = {
+            "document_pk":         document_pk,
+            "requirement_id":      rec["requirement_id"],
+            "id_source":           rec.get("id_source", "generated"),
+            "raw_text":            rec["raw_text"],
+            "normalized_text":     rec.get("normalized_text") or "",
+            "retrieval_text":      rec.get("retrieval_text") or "",
+            "title":               rec.get("title") or "",
+            "type":                rec.get("type", "other"),
+            "subtype":             rec.get("subtype") or "general",
+            "review_required":     bool(rec.get("review_required", False)),
+            "source_location":     self._jsonb(rec.get("source") or {}),
+            "extraction_meta":     self._jsonb(
+                {k: v for k, v in rec.items() if k not in _REQ_COLUMN_KEYS}
+            ),
+            "embedding":           emb.vector if emb else None,
+            "embed_model_version": emb.model_version if emb else None,
+            "embed_text_hash":     emb.text_hash if emb else None,
         }
+        for col in _REQ_LIST_COLUMNS:
+            params[col] = self._jsonb(rec.get(col) or [])
+        return params
 
-    @staticmethod
     def _comp_params(
-        rec: Dict[str, Any],
-        emb: Optional[EmbeddingResult],
-        repo_path: Optional[str],
-        repo_snapshot: Optional[str],
+        self, repo_pk: int, rec: Dict[str, Any], emb: Optional[EmbeddingResult]
     ) -> Dict[str, Any]:
+        source = rec.get("source_code")
         return {
-            "component_id":         rec["id"],
-            "component_type":       rec["component_type"],
-            "repo_path":            repo_path,
-            "repo_snapshot":        repo_snapshot,
-            "file_path":            rec["file_path"],
-            "relative_path":        rec["relative_path"],
-            "start_line":           rec.get("start_line", 0),
-            "end_line":             rec.get("end_line", 0),
-            "signature":            rec.get("signature"),
-            "return_type":          rec.get("return_type"),
-            "containing_class":     rec.get("containing_class"),
-            "parameters":           json.dumps(rec.get("parameters", []), ensure_ascii=False),
-            "depends_on":           json.dumps(list(rec.get("depends_on", [])), ensure_ascii=False),
-            "source_code":          rec.get("source_code"),
-            "embedding":            emb.vector if emb else None,
-            "embed_model_version":  emb.model_version if emb else None,
-            "embed_text_hash":      emb.text_hash if emb else None,
+            "repo_pk":             repo_pk,
+            "component_id":        rec["id"],
+            "component_type":      rec["component_type"],
+            "file_path":           rec.get("file_path") or rec["relative_path"],
+            "relative_path":       rec["relative_path"],
+            "start_line":          rec.get("start_line", 0),
+            "end_line":            rec.get("end_line", 0),
+            "signature":           rec.get("signature"),
+            "parameters":          self._jsonb(rec.get("parameters") or []),
+            "return_type":         rec.get("return_type"),
+            "containing_class":    rec.get("containing_class"),
+            "depends_on":          self._jsonb(sorted(rec.get("depends_on") or [])),
+            "source_code":         source,
+            "source_hash":         content_hash(source) if source else None,
+            "embedding":           emb.vector if emb else None,
+            "embed_model_version": emb.model_version if emb else None,
+            "embed_text_hash":     emb.text_hash if emb else None,
         }
