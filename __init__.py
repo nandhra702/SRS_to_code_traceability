@@ -23,9 +23,9 @@ CLI::
 
 from .config import TraceabilityConfig
 from .embedder import Embedder, EmbeddingResult
-from .loader import GraphLoader, SRSLoader
+from .loader import GraphLoader, SRSLoader, read_post_run_docstrings
 from .pipeline import Pipeline
-from .store import DimensionMismatchError, Store
+from .store import DimensionMismatchError, SchemaVersionError, Store
 
 __all__ = [
     "TraceabilityConfig",
@@ -33,7 +33,9 @@ __all__ = [
     "EmbeddingResult",
     "GraphLoader",
     "SRSLoader",
+    "read_post_run_docstrings",
     "Pipeline",
     "Store",
     "DimensionMismatchError",
+    "SchemaVersionError",
 ]

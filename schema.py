@@ -1,33 +1,36 @@
 """
-PostgreSQL schema for the traceability package.
+PostgreSQL schema for the traceability package (schema version 2.0.0).
 
 Tables (in creation order)
 --------------------------
-tr_schema_migrations      versioned migration log; idempotency guard
-tr_srs_documents          one row per SRS source file; gives requirements a scope
-tr_requirements           one row per requirement; PK is (document_pk, requirement_id)
-                          so the same label (e.g. FR-01.1) can appear in two docs
-tr_code_components        one row per CodeComponent; carries repo/snapshot identity
-tr_docstrings             keeps original and generated docstrings as distinct rows
-tr_relationships          flat, deduplicated typed edges between components
-tr_mappings               traceability links (populated by Mapping Agent)
+tr_schema_migrations   schema version + the embedding dimension the vector
+                       columns were created with (guards against model changes)
+tr_srs_documents       one row per SRS source; gives requirements a scope
+tr_requirements        natural key (document_pk, requirement_id) — the same
+                       label (FR-01.1) can appear in two documents
+tr_repositories        one row per analysed code repository / snapshot
+tr_code_components     natural key (repo_pk, component_id) — the same
+                       component ID (main.main) can appear in two repositories
+tr_docstrings          docstrings as their own entity, with their own embedding;
+                       'existing' (in source when DocAgent parsed) and
+                       'generated' (written by DocAgent afterwards) kept apart
+tr_relationships       DocAgent's typed edges, constrained to its five types
+tr_trace_links         requirement ↔ docstring ↔ component links (Phase 3)
+tr_verifications       append-only verification history (Phase 4)
 
 Design decisions
 ----------------
-- embed_dim is never hard-coded.  All vector(N) columns are built from the
-  integer returned by Embedder.dim at runtime.
-- embed_model_version + embed_text_hash on each embedding row allow stale
-  embedding detection when the model changes.
-- requirements.requirement_id is NOT the primary key because the same label
-  (FR-01.1) can legitimately appear in multiple documents.  The surrogate PK
-  is a BIGSERIAL; the natural composite key is (document_pk, requirement_id).
-- tr_docstrings separates original source docstrings from LLM-generated ones
-  by a docstring_kind column ('original' | 'generated'), matching the data
-  that DocAgent's CodeComponent actually carries.
-- All table names are configurable via TraceabilityConfig so the package can
-  coexist with other tables in the same database.
-- IF NOT EXISTS on every CREATE statement — safe to call multiple times.
-- No DROP TABLE anywhere.
+- The vector dimension is never hard-coded; vector(N) columns are built from the
+  embedder's resolved dimension and N is recorded in tr_schema_migrations.
+  Store.init_schema() refuses a different N instead of silently keeping the
+  old columns (CREATE TABLE IF NOT EXISTS would otherwise do exactly that).
+- Requirements, components and docstrings each carry their own embedding,
+  model version and text hash, so stale vectors can be detected per entity.
+- Each searchable entity has a generated tsvector column + GIN index for the
+  Phase 2 lexical baseline.
+- Rows that disappear from a re-ingested source are flagged is_current = FALSE
+  rather than deleted, so trace links and verification history survive.
+- IF NOT EXISTS on every CREATE; no DROP anywhere.
 """
 
 from __future__ import annotations
@@ -36,14 +39,36 @@ from typing import List
 
 from .config import TraceabilityConfig
 
-# ---------------------------------------------------------------------------
-# Current schema version — bump when adding columns or tables
-# ---------------------------------------------------------------------------
-SCHEMA_VERSION = "1.0.0"
+# Bump when tables/columns change.  Store.init_schema() refuses to run against
+# a database initialised with a different version.
+SCHEMA_VERSION = "2.0.0"
+
+RELATIONSHIP_TYPES = ("calls", "imports", "inherits", "instantiates", "contains")
+COMPONENT_TYPES = ("class", "function", "method")
+DOCSTRING_KINDS = ("existing", "generated")
+LINK_TYPES = (
+    "requirement_to_docstring",
+    "requirement_to_component",
+    "docstring_to_component",
+)
+# Verdict statuses (plan Phase 4).  not_found = the pipeline found no suitable
+# candidate, not that the requirement is definitely unimplemented.
+VERIFICATION_STATUSES = (
+    "supported",
+    "partially_supported",
+    "not_supported_by_candidate",
+    "insufficient_evidence",
+    "not_found",
+)
+LINK_STATUSES = ("candidate", "pending_verification") + VERIFICATION_STATUSES
+
+
+def _sql_list(values) -> str:
+    return ", ".join(f"'{v}'" for v in values)
 
 
 # ---------------------------------------------------------------------------
-# Extension
+# Extension + migrations
 # ---------------------------------------------------------------------------
 
 
@@ -51,16 +76,12 @@ def create_extension_ddl() -> str:
     return "CREATE EXTENSION IF NOT EXISTS vector;"
 
 
-# ---------------------------------------------------------------------------
-# Migrations table — idempotency guard
-# ---------------------------------------------------------------------------
-
-
 def create_migrations_table_ddl(cfg: TraceabilityConfig) -> str:
     t = cfg.table_migrations
     return f"""
 CREATE TABLE IF NOT EXISTS {t} (
     version         TEXT        PRIMARY KEY,
+    embed_dim       INTEGER     NOT NULL CHECK (embed_dim > 0),
     applied_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     description     TEXT
 );
@@ -68,7 +89,7 @@ CREATE TABLE IF NOT EXISTS {t} (
 
 
 # ---------------------------------------------------------------------------
-# SRS documents table — document-scope parent for requirements
+# SRS side
 # ---------------------------------------------------------------------------
 
 
@@ -76,27 +97,17 @@ def create_srs_documents_table_ddl(cfg: TraceabilityConfig) -> str:
     t = cfg.table_srs_documents
     return f"""
 CREATE TABLE IF NOT EXISTS {t} (
-    document_pk     BIGSERIAL   PRIMARY KEY,
-    -- Logical document identifier (file stem, UUID, or user-supplied label)
-    document_id     TEXT        NOT NULL,
-    file_name       TEXT        NOT NULL,
-    source_type     TEXT        NOT NULL,   -- 'docx', 'pdf', 'text'
-    ingest_path     TEXT,                   -- filesystem path at ingest time
-    total_requirements INTEGER  NOT NULL DEFAULT 0,
-
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
-    -- A document is uniquely identified by its file name within a logical scope.
-    -- Use document_id as the de-duplication key (e.g. file stem hash).
-    UNIQUE (document_id)
+    document_pk         BIGSERIAL   PRIMARY KEY,
+    -- Logical document identifier (defaults to the output file stem)
+    document_id         TEXT        NOT NULL UNIQUE,
+    file_name           TEXT        NOT NULL,
+    source_type         TEXT        NOT NULL,   -- 'docx' | 'pdf' | 'text' | 'unknown'
+    ingest_path         TEXT,
+    total_requirements  INTEGER     NOT NULL DEFAULT 0,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 """.strip()
-
-
-# ---------------------------------------------------------------------------
-# Requirements table
-# ---------------------------------------------------------------------------
 
 
 def create_requirements_table_ddl(cfg: TraceabilityConfig, embed_dim: int) -> str:
@@ -104,30 +115,21 @@ def create_requirements_table_ddl(cfg: TraceabilityConfig, embed_dim: int) -> st
     docs = cfg.table_srs_documents
     return f"""
 CREATE TABLE IF NOT EXISTS {t} (
-    -- Surrogate PK — requirement_id alone is not unique across documents
     req_pk              BIGSERIAL   PRIMARY KEY,
-
-    -- Document scope (FK to tr_srs_documents)
     document_pk         BIGINT      NOT NULL REFERENCES {docs}(document_pk) ON DELETE CASCADE,
-
-    -- Requirement identity within its document
     requirement_id      TEXT        NOT NULL,
     id_source           TEXT        NOT NULL CHECK (id_source IN ('source', 'generated')),
-
-    -- Natural uniqueness: same label cannot appear twice in one document
     UNIQUE (document_pk, requirement_id),
 
-    -- Core text (raw_text is the verbatim original; never modified)
+    -- raw_text is the verbatim original and is never modified
     raw_text            TEXT        NOT NULL,
     normalized_text     TEXT        NOT NULL DEFAULT '',
     retrieval_text      TEXT        NOT NULL DEFAULT '',
     title               TEXT        NOT NULL DEFAULT '',
-
-    -- Classification
     type                TEXT        NOT NULL CHECK (type IN ('functional', 'non-functional', 'other')),
     subtype             TEXT        NOT NULL DEFAULT 'general',
+    review_required     BOOLEAN     NOT NULL DEFAULT FALSE,
 
-    -- Semantic arrays (JSONB, not ARRAY, to allow future nesting)
     actor               JSONB       NOT NULL DEFAULT '[]'::jsonb,
     actions             JSONB       NOT NULL DEFAULT '[]'::jsonb,
     entities            JSONB       NOT NULL DEFAULT '[]'::jsonb,
@@ -142,19 +144,21 @@ CREATE TABLE IF NOT EXISTS {t} (
     synonyms            JSONB       NOT NULL DEFAULT '[]'::jsonb,
     sub_requirements    JSONB       NOT NULL DEFAULT '[]'::jsonb,
 
-    -- Source location within the document (SourceLocation flattened)
-    src_section         TEXT,
-    src_subsection      TEXT,
-    src_page            INTEGER,
-    src_paragraph       INTEGER,
-    src_table           INTEGER,
-    src_row             INTEGER,
-    src_column          INTEGER,
+    -- Full SourceLocation as emitted by the SRS Agent (nothing dropped)
+    source_location     JSONB       NOT NULL DEFAULT '{{}}'::jsonb,
+    -- Detection / candidate-judge fields (detection_confidence, candidate_*, …)
+    extraction_meta     JSONB       NOT NULL DEFAULT '{{}}'::jsonb,
 
-    -- Embedding + provenance
+    is_current          BOOLEAN     NOT NULL DEFAULT TRUE,
+
     embedding           vector({embed_dim}),
     embed_model_version TEXT,
-    embed_text_hash     TEXT,   -- SHA-256 of the text that was embedded
+    embed_text_hash     TEXT,
+
+    search_tsv          tsvector GENERATED ALWAYS AS (
+        to_tsvector('english',
+            title || ' ' || raw_text || ' ' || normalized_text || ' ' || retrieval_text)
+    ) STORED,
 
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -163,123 +167,189 @@ CREATE TABLE IF NOT EXISTS {t} (
 
 
 # ---------------------------------------------------------------------------
-# Code components table
+# Code side
 # ---------------------------------------------------------------------------
+
+
+def create_repositories_table_ddl(cfg: TraceabilityConfig) -> str:
+    t = cfg.table_repositories
+    return f"""
+CREATE TABLE IF NOT EXISTS {t} (
+    repo_pk             BIGSERIAL   PRIMARY KEY,
+    -- Logical repository identifier (defaults to the graph file stem)
+    repo_id             TEXT        NOT NULL UNIQUE,
+    repo_path           TEXT,
+    repo_snapshot       TEXT,       -- git commit SHA or tag; NULL if unknown
+    graph_path          TEXT,
+    graph_format        TEXT        NOT NULL CHECK (graph_format IN ('v1', 'legacy')),
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+""".strip()
 
 
 def create_code_components_table_ddl(cfg: TraceabilityConfig, embed_dim: int) -> str:
     t = cfg.table_components
+    repos = cfg.table_repositories
     return f"""
 CREATE TABLE IF NOT EXISTS {t} (
-    -- component_id is the DocAgent canonical ID: module.ClassName.method_name
-    component_id        TEXT        PRIMARY KEY,
-    component_type      TEXT        NOT NULL CHECK (component_type IN ('class', 'function', 'method')),
+    comp_pk             BIGSERIAL   PRIMARY KEY,
+    repo_pk             BIGINT      NOT NULL REFERENCES {repos}(repo_pk) ON DELETE CASCADE,
+    -- DocAgent canonical ID: module.ClassName.method_name
+    component_id        TEXT        NOT NULL,
+    UNIQUE (repo_pk, component_id),
+    component_type      TEXT        NOT NULL CHECK (component_type IN ({_sql_list(COMPONENT_TYPES)})),
 
-    -- Repository / snapshot identity
-    repo_path           TEXT,       -- absolute repo path at parse time
-    repo_snapshot       TEXT,       -- git commit SHA or tag, NULL if unknown
-
-    -- File location
     file_path           TEXT        NOT NULL,
     relative_path       TEXT        NOT NULL,
     start_line          INTEGER     NOT NULL DEFAULT 0,
     end_line            INTEGER     NOT NULL DEFAULT 0,
 
-    -- V1 metadata
     signature           TEXT,
+    parameters          JSONB       NOT NULL DEFAULT '[]'::jsonb,
     return_type         TEXT,
     containing_class    TEXT,
-    parameters          JSONB       NOT NULL DEFAULT '[]'::jsonb,
+    -- DocAgent's untyped ordering dependencies, kept verbatim (noisy; typed
+    -- edges live in the relationships table)
     depends_on          JSONB       NOT NULL DEFAULT '[]'::jsonb,
 
-    -- Source code (stored for context; may be large)
+    -- Source as parsed by DocAgent; line numbers refer to this snapshot
     source_code         TEXT,
+    source_hash         TEXT,
 
-    -- Embedding + provenance
+    is_current          BOOLEAN     NOT NULL DEFAULT TRUE,
+
+    -- Code embedding (signature + docstring-stripped source)
     embedding           vector({embed_dim}),
     embed_model_version TEXT,
     embed_text_hash     TEXT,
 
+    -- Identifiers split on _ and . so 'process_data' matches 'process data'
+    search_tsv          tsvector GENERATED ALWAYS AS (
+        to_tsvector('simple', regexp_replace(
+            component_id || ' ' || coalesce(signature, '') || ' ' || coalesce(source_code, ''),
+            '[_.]', ' ', 'g'))
+    ) STORED,
+
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 """.strip()
 
 
-# ---------------------------------------------------------------------------
-# Docstrings table — keeps original and generated docstrings as distinct rows
-# ---------------------------------------------------------------------------
-
-
-def create_docstrings_table_ddl(cfg: TraceabilityConfig) -> str:
+def create_docstrings_table_ddl(cfg: TraceabilityConfig, embed_dim: int) -> str:
     t = cfg.table_docstrings
     comp = cfg.table_components
     return f"""
 CREATE TABLE IF NOT EXISTS {t} (
-    id                  BIGSERIAL   PRIMARY KEY,
-    component_id        TEXT        NOT NULL REFERENCES {comp}(component_id) ON DELETE CASCADE,
+    docstring_pk        BIGSERIAL   PRIMARY KEY,
+    comp_pk             BIGINT      NOT NULL REFERENCES {comp}(comp_pk) ON DELETE CASCADE,
 
-    -- 'original'  = docstring present in source at parse time (has_docstring=True)
-    -- 'generated' = docstring produced by DocAgent's Writer agent
-    docstring_kind      TEXT        NOT NULL CHECK (docstring_kind IN ('original', 'generated')),
+    -- 'existing'  = present in source when DocAgent parsed the repo (this may
+    --               itself be the output of an earlier DocAgent run)
+    -- 'generated' = differs from / absent in the parsed source and found in
+    --               the post-generation source tree
+    docstring_kind      TEXT        NOT NULL CHECK (docstring_kind IN ({_sql_list(DOCSTRING_KINDS)})),
+    UNIQUE (comp_pk, docstring_kind),
 
-    content             TEXT        NOT NULL DEFAULT '',
+    content             TEXT        NOT NULL,
+    content_hash        TEXT        NOT NULL,
+    provenance          JSONB       NOT NULL DEFAULT '{{}}'::jsonb,
+    is_current          BOOLEAN     NOT NULL DEFAULT TRUE,
 
-    -- Only one row per (component, kind) is meaningful
-    UNIQUE (component_id, docstring_kind),
+    embedding           vector({embed_dim}),
+    embed_model_version TEXT,
+    embed_text_hash     TEXT,
+
+    search_tsv          tsvector GENERATED ALWAYS AS (to_tsvector('english', content)) STORED,
 
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 """.strip()
-
-
-# ---------------------------------------------------------------------------
-# Relationships table
-# ---------------------------------------------------------------------------
 
 
 def create_relationships_table_ddl(cfg: TraceabilityConfig) -> str:
     t = cfg.table_relationships
     comp = cfg.table_components
+    repos = cfg.table_repositories
     return f"""
 CREATE TABLE IF NOT EXISTS {t} (
-    id                  BIGSERIAL   PRIMARY KEY,
-    source_id           TEXT        NOT NULL REFERENCES {comp}(component_id) ON DELETE CASCADE,
-    target_id           TEXT        NOT NULL REFERENCES {comp}(component_id) ON DELETE CASCADE,
-    -- rel_type is open-ended TEXT to survive future DocAgent relationship types;
-    -- the application layer validates against RELATIONSHIP_TYPES.
-    rel_type            TEXT        NOT NULL,
-
-    UNIQUE (source_id, target_id, rel_type)
+    rel_pk              BIGSERIAL   PRIMARY KEY,
+    repo_pk             BIGINT      NOT NULL REFERENCES {repos}(repo_pk) ON DELETE CASCADE,
+    source_comp_pk      BIGINT      NOT NULL REFERENCES {comp}(comp_pk) ON DELETE CASCADE,
+    target_comp_pk      BIGINT      NOT NULL REFERENCES {comp}(comp_pk) ON DELETE CASCADE,
+    rel_type            TEXT        NOT NULL CHECK (rel_type IN ({_sql_list(RELATIONSHIP_TYPES)})),
+    UNIQUE (source_comp_pk, target_comp_pk, rel_type)
 );
 """.strip()
 
 
 # ---------------------------------------------------------------------------
-# Mappings table
+# Mapping + verification (populated by Phases 3 and 4)
 # ---------------------------------------------------------------------------
 
 
-def create_mappings_table_ddl(cfg: TraceabilityConfig) -> str:
-    t = cfg.table_mappings
+def create_trace_links_table_ddl(cfg: TraceabilityConfig) -> str:
+    t = cfg.table_trace_links
     req = cfg.table_requirements
+    ds = cfg.table_docstrings
     comp = cfg.table_components
     return f"""
 CREATE TABLE IF NOT EXISTS {t} (
-    id                  BIGSERIAL   PRIMARY KEY,
-    req_pk              BIGINT      NOT NULL REFERENCES {req}(req_pk) ON DELETE CASCADE,
-    component_id        TEXT        NOT NULL REFERENCES {comp}(component_id) ON DELETE CASCADE,
+    link_pk             BIGSERIAL   PRIMARY KEY,
+    link_type           TEXT        NOT NULL CHECK (link_type IN ({_sql_list(LINK_TYPES)})),
+    req_pk              BIGINT      REFERENCES {req}(req_pk) ON DELETE CASCADE,
+    docstring_pk        BIGINT      REFERENCES {ds}(docstring_pk) ON DELETE CASCADE,
+    comp_pk             BIGINT      REFERENCES {comp}(comp_pk) ON DELETE CASCADE,
 
-    confidence_score    REAL        CHECK (confidence_score BETWEEN 0.0 AND 1.0),
-    -- 'vector_search' | 'llm_verified' | 'manual'
-    mapping_type        TEXT        NOT NULL DEFAULT 'vector_search',
-    rationale           TEXT,
+    -- Every link type must reference exactly the two entities it joins
+    CHECK (
+        (link_type = 'requirement_to_docstring'
+            AND req_pk IS NOT NULL AND docstring_pk IS NOT NULL AND comp_pk IS NULL)
+     OR (link_type = 'requirement_to_component'
+            AND req_pk IS NOT NULL AND comp_pk IS NOT NULL AND docstring_pk IS NULL)
+     OR (link_type = 'docstring_to_component'
+            AND docstring_pk IS NOT NULL AND comp_pk IS NOT NULL AND req_pk IS NULL)
+    ),
 
-    UNIQUE (req_pk, component_id),
+    -- Links stay pending until the verifier assigns a verdict
+    status              TEXT        NOT NULL DEFAULT 'pending_verification'
+                                    CHECK (status IN ({_sql_list(LINK_STATUSES)})),
+    retrieval_method    TEXT,                       -- 'lexical' | 'vector' | 'hybrid' | 'ownership' | 'graph'
+    scores              JSONB       NOT NULL DEFAULT '{{}}'::jsonb,   -- per-method score breakdown
+    evidence            JSONB       NOT NULL DEFAULT '{{}}'::jsonb,   -- snippets, edge paths, locations
+    pipeline_version    TEXT        NOT NULL,
+
+    UNIQUE NULLS NOT DISTINCT (link_type, req_pk, docstring_pk, comp_pk, pipeline_version),
 
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+""".strip()
+
+
+def create_verifications_table_ddl(cfg: TraceabilityConfig) -> str:
+    t = cfg.table_verifications
+    links = cfg.table_trace_links
+    req = cfg.table_requirements
+    return f"""
+CREATE TABLE IF NOT EXISTS {t} (
+    verification_pk     BIGSERIAL   PRIMARY KEY,
+    -- A verdict is about a proposed link, or (for not_found) a requirement alone
+    link_pk             BIGINT      REFERENCES {links}(link_pk) ON DELETE CASCADE,
+    req_pk              BIGINT      REFERENCES {req}(req_pk) ON DELETE CASCADE,
+    CHECK (link_pk IS NOT NULL OR req_pk IS NOT NULL),
+
+    status              TEXT        NOT NULL CHECK (status IN ({_sql_list(VERIFICATION_STATUSES)})),
+    rationale           TEXT,
+    claims              JSONB       NOT NULL DEFAULT '[]'::jsonb,   -- claim-level findings
+    evidence_refs       JSONB       NOT NULL DEFAULT '[]'::jsonb,   -- validated component/line refs
+    model               TEXT,
+    prompt_version      TEXT,
+    pipeline_version    TEXT        NOT NULL,
+    -- Append-only: one row per verification run, never updated
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 """.strip()
 
@@ -290,52 +360,42 @@ CREATE TABLE IF NOT EXISTS {t} (
 
 
 def btree_index_ddl(cfg: TraceabilityConfig) -> List[str]:
-    """B-tree indexes — safe to run on empty tables."""
+    """B-tree and GIN indexes — safe to run on empty tables."""
     req = cfg.table_requirements
     comp = cfg.table_components
-    docs = cfg.table_srs_documents
-    rel = cfg.table_relationships
     ds = cfg.table_docstrings
-    mp = cfg.table_mappings
+    rel = cfg.table_relationships
+    tl = cfg.table_trace_links
+    vf = cfg.table_verifications
     return [
-        f"CREATE INDEX IF NOT EXISTS idx_{docs}_document_id ON {docs}(document_id);",
         f"CREATE INDEX IF NOT EXISTS idx_{req}_document_pk ON {req}(document_pk);",
         f"CREATE INDEX IF NOT EXISTS idx_{req}_requirement_id ON {req}(requirement_id);",
-        f"CREATE INDEX IF NOT EXISTS idx_{req}_type ON {req}(type);",
-        f"CREATE INDEX IF NOT EXISTS idx_{req}_subtype ON {req}(subtype);",
-        f"CREATE INDEX IF NOT EXISTS idx_{req}_embed_version ON {req}(embed_model_version);",
-        f"CREATE INDEX IF NOT EXISTS idx_{comp}_type ON {comp}(component_type);",
-        f"CREATE INDEX IF NOT EXISTS idx_{comp}_file ON {comp}(relative_path);",
-        f"CREATE INDEX IF NOT EXISTS idx_{comp}_embed_version ON {comp}(embed_model_version);",
-        f"CREATE INDEX IF NOT EXISTS idx_{ds}_component ON {ds}(component_id);",
-        f"CREATE INDEX IF NOT EXISTS idx_{rel}_source ON {rel}(source_id);",
-        f"CREATE INDEX IF NOT EXISTS idx_{rel}_target ON {rel}(target_id);",
-        f"CREATE INDEX IF NOT EXISTS idx_{rel}_type ON {rel}(rel_type);",
-        f"CREATE INDEX IF NOT EXISTS idx_{mp}_req ON {mp}(req_pk);",
-        f"CREATE INDEX IF NOT EXISTS idx_{mp}_comp ON {mp}(component_id);",
-        f"CREATE INDEX IF NOT EXISTS idx_{mp}_score ON {mp}(confidence_score DESC NULLS LAST);",
+        f"CREATE INDEX IF NOT EXISTS idx_{req}_type ON {req}(type, subtype);",
+        f"CREATE INDEX IF NOT EXISTS idx_{req}_tsv ON {req} USING GIN (search_tsv);",
+        f"CREATE INDEX IF NOT EXISTS idx_{comp}_repo ON {comp}(repo_pk);",
+        f"CREATE INDEX IF NOT EXISTS idx_{comp}_file ON {comp}(repo_pk, relative_path);",
+        f"CREATE INDEX IF NOT EXISTS idx_{comp}_tsv ON {comp} USING GIN (search_tsv);",
+        f"CREATE INDEX IF NOT EXISTS idx_{ds}_comp ON {ds}(comp_pk);",
+        f"CREATE INDEX IF NOT EXISTS idx_{ds}_tsv ON {ds} USING GIN (search_tsv);",
+        f"CREATE INDEX IF NOT EXISTS idx_{rel}_source ON {rel}(source_comp_pk);",
+        f"CREATE INDEX IF NOT EXISTS idx_{rel}_target ON {rel}(target_comp_pk);",
+        f"CREATE INDEX IF NOT EXISTS idx_{tl}_req ON {tl}(req_pk);",
+        f"CREATE INDEX IF NOT EXISTS idx_{tl}_comp ON {tl}(comp_pk);",
+        f"CREATE INDEX IF NOT EXISTS idx_{tl}_status ON {tl}(status);",
+        f"CREATE INDEX IF NOT EXISTS idx_{vf}_link ON {vf}(link_pk);",
     ]
 
 
-def ivfflat_index_ddl(cfg: TraceabilityConfig, lists: int = 100) -> List[str]:
+def vector_index_ddl(cfg: TraceabilityConfig) -> List[str]:
     """
-    IVFFlat ANN indexes on vector columns.
-
-    Must be called AFTER data is loaded — IVFFlat requires rows to exist.
+    Optional HNSW ANN indexes (cosine).  Exact search is used until a dataset
+    is large enough to justify these; HNSW, unlike IVFFlat, can be built on
+    an empty table.
     """
-    req = cfg.table_requirements
-    comp = cfg.table_components
     return [
-        (
-            f"CREATE INDEX IF NOT EXISTS idx_{req}_embedding "
-            f"ON {req} USING ivfflat (embedding vector_cosine_ops) "
-            f"WITH (lists = {lists});"
-        ),
-        (
-            f"CREATE INDEX IF NOT EXISTS idx_{comp}_embedding "
-            f"ON {comp} USING ivfflat (embedding vector_cosine_ops) "
-            f"WITH (lists = {lists});"
-        ),
+        f"CREATE INDEX IF NOT EXISTS idx_{t}_embedding "
+        f"ON {t} USING hnsw (embedding vector_cosine_ops);"
+        for t in (cfg.table_requirements, cfg.table_components, cfg.table_docstrings)
     ]
 
 
@@ -346,27 +406,21 @@ def ivfflat_index_ddl(cfg: TraceabilityConfig, lists: int = 100) -> List[str]:
 
 def all_create_ddl(cfg: TraceabilityConfig, embed_dim: int) -> List[str]:
     """
-    Return all DDL statements in strict dependency order:
-      extension → migrations → documents → requirements → components →
-      docstrings → relationships → mappings → btree indexes.
-
-    IVFFlat indexes are excluded — call ivfflat_index_ddl() after loading data.
-
-    Args:
-        cfg:       TraceabilityConfig instance.
-        embed_dim: Resolved embedding dimension (must be > 0).
+    All entity DDL in dependency order (the extension and migrations table are
+    created separately by Store.init_schema so it can check the recorded
+    version first).  Vector indexes are excluded — see vector_index_ddl().
     """
     if embed_dim <= 0:
         raise ValueError(f"embed_dim must be positive, got {embed_dim}")
     stmts = [
-        create_extension_ddl(),
-        create_migrations_table_ddl(cfg),
         create_srs_documents_table_ddl(cfg),
         create_requirements_table_ddl(cfg, embed_dim),
+        create_repositories_table_ddl(cfg),
         create_code_components_table_ddl(cfg, embed_dim),
-        create_docstrings_table_ddl(cfg),
+        create_docstrings_table_ddl(cfg, embed_dim),
         create_relationships_table_ddl(cfg),
-        create_mappings_table_ddl(cfg),
+        create_trace_links_table_ddl(cfg),
+        create_verifications_table_ddl(cfg),
     ]
     stmts.extend(btree_index_ddl(cfg))
     return stmts
