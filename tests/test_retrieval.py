@@ -207,3 +207,38 @@ class TestSearch:
         import json
         resolver, retriever, _ = world
         json.dumps(retriever.search(resolver.resolve("overdue fine", repo_id="lib")).to_dict())
+
+
+@requires_pg
+def test_missing_docstring_is_not_evidence_against_a_component(world):
+    """
+    calculate_fine has no docstring (like DocAgent's skipped __init__ methods);
+    renew has one.  Both rank equally well where both can appear, so absence
+    from the docstring channels must not push calculate_fine down.
+    """
+    resolver, retriever, _ = world
+    with resolver._store.transaction() as cur:
+        cur.execute(f"SELECT component_id, comp_pk FROM {resolver._cfg.table_components}")
+        pk = {r["component_id"]: r["comp_pk"] for r in cur.fetchall()}
+
+    def comp(cid, ch, rank):
+        return Hit("component", pk[cid], cid, {"component_type": "function", "repo_pk": 1, "path": "p",
+                   "start_line": 1, "end_line": 2}, channels={ch: {"rank": rank, "score": 1.0}})
+
+    def doc(cid, ch):
+        return Hit("docstring", 999, cid, {"comp_pk": pk[cid], "component_id": cid, "component_type": "method",
+                   "repo_pk": 1, "path": "p", "start_line": 1, "end_line": 2, "docstring_kind": "generated"},
+                   channels={ch: {"rank": 1, "score": 1.0}})
+
+    channels = {
+        "component_lexical": [comp("fines.calculate_fine", "component_lexical", 1), comp("loan.Loan.renew", "component_lexical", 2)],
+        "component_vector":  [comp("fines.calculate_fine", "component_vector", 1), comp("loan.Loan.renew", "component_vector", 2)],
+        "docstring_lexical": [doc("loan.Loan.renew", "docstring_lexical")],
+        "docstring_vector":  [doc("loan.Loan.renew", "docstring_vector")],
+    }
+    fused = retriever.fuse_components(channels)
+    # A plain RRF sum would rank renew first (4 votes vs 2).
+    assert [h.external_id for h in fused] == ["fines.calculate_fine", "loan.Loan.renew"]
+    assert fused[0].score == pytest.approx((2 / 61) / 2)
+    assert fused[1].score == pytest.approx((2 / 62 + 2 / 61) / 4)
+    assert fused[1].data["via_docstring"] == "generated"

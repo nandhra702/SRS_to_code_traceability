@@ -94,7 +94,7 @@ You can force a mode with `--mode id|text|adhoc|keyword`.
 
 **Fusion.** Lexical and vector scores aren't comparable, so `hybrid` combines them with Reciprocal Rank Fusion (`Σ 1/(60 + rank)`). Every hit keeps each channel's rank and raw score.
 
-**Implementation candidates.** The `components` list fuses code hits and docstring hits; a docstring hit counts for its owning component. This is the ranking Phase 3 mapping starts from. Retrieval never calls an LLM.
+**Implementation candidates.** The `components` list fuses code hits and docstring hits; a docstring hit counts for its owning component. The fused score is the RRF sum **divided by the number of channels the component is eligible for**. A component with no docstring can't appear in the docstring channels, and that absence must not count against it; DocAgent skips `__init__` methods, for example. A plain sum dropped `Member.__init__` and `Loan.__init__` out of the top 10 on the library dataset. This list is the ranking Phase 3 mapping starts from. Retrieval never calls an LLM.
 
 **Evaluation** (`evaluation.py`). This scores each channel against the gold's `primary` links:
 - Hit@k
@@ -115,6 +115,20 @@ There are two query sources:
 | code_hybrid | 0.818 | 0.970 | 0.985 | 0.884 | 0.872 |
 
 Most top-1 misses happen because the *containing class* outranks the method that does the work. A class's source includes all of its methods, so it matches almost everything about that class.
+
+**With DocAgent docstrings.** The docstrings came from yi-coder:9b: 36 of 41 components, all except the 5 `__init__` methods, averaging 290 characters, with none truncated. All rows below are fused rankings:
+
+| query source | channel | hit@1 | hit@5 | recall@10 | MRR | nDCG@10 |
+|---|---|---|---|---|---|---|
+| gold text | code_hybrid | 0.818 | 0.970 | 0.985 | 0.884 | 0.872 |
+| gold text | doc_hybrid | 0.727 | 0.939 | 0.909 | 0.811 | 0.820 |
+| gold text | **all_hybrid** | **0.849** | **1.000** | **0.985** | **0.908** | **0.899** |
+| ingested (SRS Agent) | code_hybrid | 0.939 | 0.970 | 1.000 | 0.951 | 0.893 |
+| ingested (SRS Agent) | **all_hybrid** | 0.909 | **1.000** | **1.000** | 0.950 | **0.900** |
+
+Two things to note:
+- Docstrings alone are weaker than code, but fusing them adds value: gold-text MRR goes from 0.884 to 0.908.
+- Queries built from the SRS Agent's structured requirements (title, retrieval text, actions, entities, …) beat raw requirement text.
 
 ### Candidate search stage (the "search agent")
 
