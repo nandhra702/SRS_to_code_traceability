@@ -41,7 +41,9 @@ from .schema import (
     all_create_ddl,
     create_extension_ddl,
     create_migrations_table_ddl,
+    migration_steps,
     vector_index_ddl,
+    version_key,
 )
 
 logger = logging.getLogger(__name__)
@@ -163,8 +165,12 @@ class Store:
         """
         Create the pgvector extension and all tables/indexes (idempotent).
 
+        A database at an older schema version is migrated along
+        schema.migration_steps() in the same transaction.
+
         Raises:
-            SchemaVersionError:     the database holds a different schema version.
+            SchemaVersionError:     the database holds a version with no
+                                    migration path to SCHEMA_VERSION.
             DimensionMismatchError: the schema was created with another embed_dim.
         """
         t = self._cfg.table_migrations
@@ -184,19 +190,19 @@ class Store:
                     "initialising the new one."
                 )
             cur.execute(f"SELECT version, embed_dim FROM {t};")
-            rows = cur.fetchall()
-            other = sorted(r["version"] for r in rows if r["version"] != SCHEMA_VERSION)
-            if other:
-                raise SchemaVersionError(
-                    f"Database has schema version(s) {other}; this code expects "
-                    f"{SCHEMA_VERSION}. No automatic migration exists yet."
-                )
-            if rows and rows[0]["embed_dim"] != embed_dim:
-                raise DimensionMismatchError(
-                    f"Schema vector columns were created with dimension "
-                    f"{rows[0]['embed_dim']}, but the embedding model produces "
-                    f"{embed_dim}. Use the original model or a fresh database."
-                )
+            recorded = {r["version"]: r["embed_dim"] for r in cur.fetchall()}
+            if recorded:
+                try:
+                    current = max(recorded, key=version_key)
+                except ValueError:
+                    raise SchemaVersionError(f"Unrecognised schema versions {sorted(recorded)}.")
+                if recorded[current] != embed_dim:
+                    raise DimensionMismatchError(
+                        f"Schema vector columns were created with dimension "
+                        f"{recorded[current]}, but the embedding model produces "
+                        f"{embed_dim}. Use the original model or a fresh database."
+                    )
+                self._migrate(cur, current, embed_dim)
             for stmt in all_create_ddl(self._cfg, embed_dim):
                 cur.execute(stmt)
             cur.execute(
@@ -207,6 +213,29 @@ class Store:
         self._register_vector()
         self._schema_embed_dim = embed_dim
         logger.info("Schema %s ready (embed_dim=%d).", SCHEMA_VERSION, embed_dim)
+
+    def _migrate(self, cur, current: str, embed_dim: int) -> None:
+        """Apply migration steps from *current* up to SCHEMA_VERSION."""
+        if version_key(current) > version_key(SCHEMA_VERSION):
+            raise SchemaVersionError(
+                f"Database schema {current} is newer than this code ({SCHEMA_VERSION}).")
+        steps = migration_steps(self._cfg)
+        version = current
+        while version != SCHEMA_VERSION:
+            if version not in steps:
+                raise SchemaVersionError(
+                    f"Database has schema version {version}; this code expects "
+                    f"{SCHEMA_VERSION} and has no migration from it.")
+            target, stmts = steps[version]
+            for stmt in stmts:
+                cur.execute(stmt)
+            cur.execute(
+                f"INSERT INTO {self._cfg.table_migrations} (version, embed_dim, description) "
+                f"VALUES (%s, %s, %s) ON CONFLICT (version) DO NOTHING;",
+                (target, embed_dim, f"migrated from {version}"),
+            )
+            logger.info("Migrated schema %s -> %s.", version, target)
+            version = target
 
     def get_schema_embed_dim(self) -> Optional[int]:
         """Embedding dimension recorded for the current schema, or None."""
@@ -223,7 +252,9 @@ class Store:
             )
             if cur.fetchone() is None:
                 return None
-            cur.execute(f"SELECT embed_dim FROM {t} WHERE version = %s;", (SCHEMA_VERSION,))
+            # Every version row records the same dimension; read the latest so
+            # this also works on a database that has not been migrated yet.
+            cur.execute(f"SELECT embed_dim FROM {t} ORDER BY applied_at DESC LIMIT 1;")
             row = cur.fetchone()
         return row["embed_dim"] if row else None
 
@@ -757,7 +788,8 @@ class Store:
             "component_id":        rec["id"],
             "component_type":      rec["component_type"],
             "file_path":           rec.get("file_path") or rec["relative_path"],
-            "relative_path":       rec["relative_path"],
+            # Graphs made on Windows use backslashes; store POSIX paths.
+            "relative_path":       rec["relative_path"].replace("\\", "/"),
             "start_line":          rec.get("start_line", 0),
             "end_line":            rec.get("end_line", 0),
             "signature":           rec.get("signature"),

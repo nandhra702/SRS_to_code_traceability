@@ -35,13 +35,33 @@ Design decisions
 
 from __future__ import annotations
 
-from typing import List
+from typing import Dict, List, Tuple
 
 from .config import TraceabilityConfig
 
-# Bump when tables/columns change.  Store.init_schema() refuses to run against
-# a database initialised with a different version.
-SCHEMA_VERSION = "2.0.0"
+# Bump when tables/columns change and add a step to migration_steps().
+# Store.init_schema() migrates older databases along that chain and refuses
+# any version it has no path from.
+SCHEMA_VERSION = "2.1.0"
+
+# Text-search configuration shared by every search_tsv column and by queries
+# (retrieval.py), so stems produced at index time and query time agree.
+TS_CONFIG = "english"
+
+
+def split_identifiers_sql(expr: str) -> str:
+    """
+    SQL expression splitting code identifiers into words before indexing:
+    camelCase → 'camel Case', snake_case / dotted.path → separate words.
+    Must stay IMMUTABLE (used in a generated column).
+    """
+    return (f"regexp_replace(regexp_replace({expr}, '([a-z0-9])([A-Z])', '\\1 \\2', 'g'), "
+            f"'[_.]', ' ', 'g')")
+
+
+def code_tsv_sql() -> str:
+    return (f"to_tsvector('{TS_CONFIG}', " + split_identifiers_sql(
+        "component_id || ' ' || coalesce(signature, '') || ' ' || coalesce(source_code, '')") + ")")
 
 RELATIONSHIP_TYPES = ("calls", "imports", "inherits", "instantiates", "contains")
 COMPONENT_TYPES = ("class", "function", "method")
@@ -224,12 +244,9 @@ CREATE TABLE IF NOT EXISTS {t} (
     embed_model_version TEXT,
     embed_text_hash     TEXT,
 
-    -- Identifiers split on _ and . so 'process_data' matches 'process data'
-    search_tsv          tsvector GENERATED ALWAYS AS (
-        to_tsvector('simple', regexp_replace(
-            component_id || ' ' || coalesce(signature, '') || ' ' || coalesce(source_code, ''),
-            '[_.]', ' ', 'g'))
-    ) STORED,
+    -- Identifiers split (camelCase, _, .) and English-stemmed, so the query
+    -- 'overdue fines' matches calculate_fine / days_overdue
+    search_tsv          tsvector GENERATED ALWAYS AS ({code_tsv_sql()}) STORED,
 
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -424,3 +441,31 @@ def all_create_ddl(cfg: TraceabilityConfig, embed_dim: int) -> List[str]:
     ]
     stmts.extend(btree_index_ddl(cfg))
     return stmts
+
+
+# ---------------------------------------------------------------------------
+# Migrations
+# ---------------------------------------------------------------------------
+
+
+def migration_steps(cfg: TraceabilityConfig) -> Dict[str, Tuple[str, List[str]]]:
+    """
+    {from_version: (to_version, [DDL statements])}.  Store.init_schema() walks
+    this chain inside one transaction.  Steps only rebuild derived columns —
+    source data is never touched.
+    """
+    comp = cfg.table_components
+    return {
+        # 2.1.0: code search_tsv switches from 'simple' to English stemming with
+        # camelCase splitting (a generated column cannot be altered in place).
+        "2.0.0": ("2.1.0", [
+            f"ALTER TABLE {comp} DROP COLUMN search_tsv;",
+            f"ALTER TABLE {comp} ADD COLUMN search_tsv tsvector "
+            f"GENERATED ALWAYS AS ({code_tsv_sql()}) STORED;",
+            f"CREATE INDEX IF NOT EXISTS idx_{comp}_tsv ON {comp} USING GIN (search_tsv);",
+        ]),
+    }
+
+
+def version_key(version: str) -> Tuple[int, ...]:
+    return tuple(int(part) for part in version.split("."))

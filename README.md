@@ -4,7 +4,7 @@ This package is the integration layer between **SRS Agent** (requirements) and *
 
 It only consumes the outputs of those tools and never imports either one.
 
-Status: **Phase 1, schema and ingestion, is complete.** Retrieval (Phase 2), mapping (Phase 3) and verification (Phase 4) are not built yet. The trace-link and verification tables already exist so those phases can write to them.
+Status: **Phase 1 (schema and ingestion) and Phase 2 (query resolution and retrieval) are complete.** Mapping (Phase 3) and verification (Phase 4) are not built yet. The trace-link and verification tables already exist so those phases can write to them.
 
 ## Setup
 
@@ -58,7 +58,58 @@ $py = ".\SRS_to_code_traceability\.venv\Scripts\python.exe"
 
 # Optional HNSW indexes (exact search is used until the data justifies them)
 & $py -m traceability.cli build-vector-indexes
+
+# Search: a requirement ID, full requirement text, or keywords
+& $py -m traceability.cli search FR-018 --document-id library-srs-v1.1 --repo-id "library@yi-coder-9b"
+& $py -m traceability.cli search "late return penalty" --repo-id "library@yi-coder-9b" --top-k 5
+& $py -m traceability.cli search "overdue fine" --method lexical --entities component --json
+
+# Score retrieval against a gold-standard mapping (format v2)
+& $py -m traceability.cli evaluate --gold library_traceability_dataset\gold_standard\gold_standard_mapping.json `
+    --repo-id "library@yi-coder-9b" --out eval_gold_text.json
+& $py -m traceability.cli evaluate --gold library_traceability_dataset\gold_standard\gold_standard_mapping.json `
+    --repo-id "library@yi-coder-9b" --document-id library-srs-v1.1 --query-source ingested
 ```
+
+## Retrieval (Phase 2)
+
+**Query resolution** (`query.py`). `search` decides what you typed:
+
+| Input | Treated as |
+|---|---|
+| `FR-018` | A stored requirement, resolved within an SRS document. If the ID exists in several documents and no `--document-id` is given, the result is `ambiguous`; it never picks one. |
+| A sentence of 6+ words | The stored requirement whose text matches exactly one. Otherwise an ad-hoc requirement-like query, with the exact text kept. |
+| Shorter input | Keywords. Never creates or implies a formal requirement. |
+
+You can force a mode with `--mode id|text|adhoc|keyword`.
+
+**Channels** (`retrieval.py`). There are six, one per entity × method: {requirement, docstring, component} × {lexical, vector}.
+- **Lexical** uses PostgreSQL full-text search. The query becomes an OR of its English-stemmed words, with identifiers split the same way as at index time (`calculate_fine` → *calcul fine*, `LendingService` → *lend servic*). Hits are ranked with `ts_rank`.
+- **Vector** uses pgvector cosine similarity. It only compares rows embedded by the configured model version. A stored requirement reuses its own vector.
+
+**Fusion.** Lexical and vector scores aren't comparable, so `hybrid` combines them with Reciprocal Rank Fusion (`Σ 1/(60 + rank)`). Every hit keeps each channel's rank and raw score.
+
+**Implementation candidates.** The `components` list fuses code hits and docstring hits; a docstring hit counts for its owning component. This is the ranking Phase 3 mapping starts from. Retrieval never calls an LLM.
+
+**Evaluation** (`evaluation.py`). This scores each channel against the gold's `primary` links:
+- Hit@k
+- Recall@k
+- MRR
+- graded nDCG@10, where primary = 2 and supporting = 1
+
+There are two query sources:
+- `gold_text` uses the gold requirement text. It measures search quality alone.
+- `ingested` uses the SRS Agent's extracted requirement, matched to the gold by ID, else by text similarity. It measures the full pipeline.
+
+**Code-only baseline** on the library dataset: gold-text queries, no docstrings, 33 implemented or partial requirements.
+
+| channel | hit@1 | hit@5 | recall@10 | MRR | nDCG@10 |
+|---|---|---|---|---|---|
+| code_lexical | 0.879 | 0.970 | 0.955 | 0.916 | 0.854 |
+| code_vector | 0.849 | 0.970 | 0.985 | 0.897 | 0.897 |
+| code_hybrid | 0.818 | 0.970 | 0.985 | 0.884 | 0.872 |
+
+Most top-1 misses happen because the *containing class* outranks the method that does the work. A class's source includes all of its methods, so it matches almost everything about that class.
 
 ## Design
 
@@ -117,5 +168,7 @@ cd SRS_to_code_traceability
 - **Long docstrings are truncated.** DocAgent's docstrings are long: 25 of 55 in the llama3.1-8b graph exceed 256 tokens, so only their beginning is embedded. Truncation is reported. Chunking or a larger-context model is a Phase 2 decision.
 - **Legacy graphs are thin.** Pre-V1 graphs have no source, signatures or typed edges. Their components are stored, but they get no code embedding and no relationships.
 - **`depends_on` is stored verbatim** for reference. It is noisy: it includes local variables resolved as module members, such as `example.e`. Graph enrichment should use the typed relationships instead.
-- **No automatic migrations.** A database with a different schema version is refused, and a development database has to be reset by hand.
+- **Migrations exist only from 2.0.0.** `init_schema` migrates 2.0.0 → 2.1.0 automatically; this rebuilds the code full-text column with stemming. Any other older or newer version is refused.
+- **Classes compete with their own methods** in retrieval, because a class's source contains every method's source. Possible fixes are to embed classes by signature only, or to down-weight classes. Decide after the docstring channels are measured.
+- **The library dataset is easy for keyword search.** Its SRS and code were generated together, so they share vocabulary. Expect lower lexical scores on real projects.
 - **No real evaluation yet.** The sample SRS doesn't describe the sample repositories, so retrieval and mapping quality can't be judged until a paired SRS and codebase exists.
