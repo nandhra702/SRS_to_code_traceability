@@ -12,6 +12,9 @@ search                 Search requirements, docstrings and code (lexical + vecto
 evaluate               Score retrieval against a gold-standard mapping (v2).
 find-candidates        Search agent: top-N code candidates per requirement, stored as links.
 evaluate-candidates    Score stored candidates against a gold-standard mapping (v2).
+map-requirements       Mapping agent: direct + supporting links per requirement (pending verification).
+evaluate-mapping       Score stored mapping links against a gold-standard mapping (v2).
+show-mapping           Show one requirement's mapped subgraph (components + edges).
 
 Each ingest prints a JSON report (counts, skipped/truncated texts, skipped
 relationships) to stdout; progress logs go to stderr.
@@ -189,6 +192,85 @@ def cmd_evaluate_candidates(args: argparse.Namespace, cfg: TraceabilityConfig):
     ])
 
 
+def _short(component_id: str) -> str:
+    """'library_system.services.lending.LendingService.checkout' -> 'lending.LendingService.checkout'."""
+    parts = component_id.split(".")
+    return ".".join(parts[-3:]) if len(parts) > 3 else component_id
+
+
+def cmd_map_requirements(args: argparse.Namespace, cfg: TraceabilityConfig):
+    from .mapping import Mapper, MappingConfig
+    from .query import QueryResolver
+
+    mc = MappingConfig(max_direct_rank=args.max_direct_rank, max_supporting=args.max_supporting,
+                       use_source_references=not args.no_source_references)
+    with Store(cfg) as store:
+        report = Mapper(store, QueryResolver(store), mc).run(
+            args.document_id, args.repo_id, candidates_version=args.candidates_version,
+            pipeline_version=args.pipeline_version)
+    if args.json:
+        return report
+    lines = [f"Mapped {report['requirements']} requirement(s) of {report['document_id']} -> "
+             f"{report['repo_id']} ({report['pipeline_version']}, from {report['candidates_version']}): "
+             f"{report['links']['direct']} direct, {report['links']['supporting']} supporting, "
+             f"{report['links']['docstrings']} docstring links; all pending verification", ""]
+    for r in report["per_requirement"]:
+        lines.append(f"{r['requirement_id']:10s} direct: {', '.join(_short(c) for c in r['direct']) or '-'}")
+        if r["supporting"]:
+            lines.append(f"{'':10s} supporting: {', '.join(_short(c) for c in r['supporting'])}")
+    if report["without_candidates"]:
+        lines.append(f"\nNo candidates (run find-candidates first?): {report['without_candidates']}")
+    return "\n".join(lines)
+
+
+def cmd_evaluate_mapping(args: argparse.Namespace, cfg: TraceabilityConfig):
+    from .evaluation import Evaluator, load_gold
+    from .query import QueryResolver
+
+    with Store(cfg) as store:
+        report = Evaluator(QueryResolver(store), None).evaluate_mapping(
+            load_gold(args.gold), document_id=args.document_id, pipeline_version=args.pipeline_version)
+    if args.out:
+        with open(args.out, "w", encoding="utf-8") as fh:
+            json.dump(report, fh, indent=2, default=str)
+    lines = [f"Mapping {report['pipeline_version']} for {report['document_id']}: "
+             f"{report['requirements_scored']} gold requirements scored", ""]
+    for key, label in (("direct", "direct vs gold primary"), ("supporting", "supporting vs gold supporting"),
+                       ("all", "all links vs all gold links")):
+        s = report["scores"][key]
+        lines.append(f"  {label:32s} P={s['precision']:.3f}  R={s['recall']:.3f}  F1={s['f1']:.3f}  "
+                     f"(tp={s['tp']} fp={s['fp']} fn={s['fn']})")
+    lines.append("\n  links created for requirements with no code (verifier must reject): "
+                 + ", ".join(f"{k}={v['links']}" for k, v in report["requirements_without_code"].items()))
+    missed = {d["requirement_id"]: [_short(c) for c in d["missed_primary"]]
+              for d in report["per_requirement"] if d["missed_primary"]}
+    lines.append(f"  primary components not linked as direct: {missed}")
+    return "\n".join(lines)
+
+
+def cmd_show_mapping(args: argparse.Namespace, cfg: TraceabilityConfig):
+    from .mapping import Mapper
+    from .query import QueryResolver
+
+    with Store(cfg) as store:
+        sub = Mapper(store, QueryResolver(store)).subgraph(
+            args.document_id, args.requirement_id, args.pipeline_version)
+    if args.json:
+        return sub
+    lines = [f"Subgraph of {sub['requirement_id']} ({sub['pipeline_version']}): "
+             f"{len(sub['nodes'])} components, {len(sub['edges'])} edges", ""]
+    for n in sorted(sub["nodes"], key=lambda n: (n["role"] != "direct", n["rank"] or 99)):
+        rank = f"#{n['rank']}" if n["rank"] else "graph"
+        lines.append(f"  [{n['role']:10s}] {_short(n['component_id']):45s} {rank:>6s}  "
+                     f"{n['path']}:{n['lines'][0]}-{n['lines'][1]}  ({n['status']})")
+    if sub["edges"]:
+        lines.append("")
+    for e in sub["edges"]:
+        where = f"  line {e['line']}" if e.get("line") else ""
+        lines.append(f"  {_short(e['from'])} --{e['type']}--> {_short(e['to'])}  [{e['source']}]{where}")
+    return "\n".join(lines)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m traceability.cli",
@@ -252,6 +334,30 @@ def build_parser() -> argparse.ArgumentParser:
     p_ec.add_argument("--document-id", required=True)
     p_ec.add_argument("--pipeline-version", default="candidates-v1")
     p_ec.add_argument("--out", default=None)
+
+    p_map = sub.add_parser("map-requirements",
+                           help="Mapping agent: build each requirement's code subgraph from its candidates.")
+    p_map.add_argument("--document-id", required=True)
+    p_map.add_argument("--repo-id", required=True)
+    p_map.add_argument("--candidates-version", default="candidates-v1")
+    p_map.add_argument("--pipeline-version", default="mapping-v1")
+    p_map.add_argument("--max-direct-rank", type=int, default=3)
+    p_map.add_argument("--max-supporting", type=int, default=6)
+    p_map.add_argument("--no-source-references", action="store_true",
+                       help="Use only DocAgent's typed edges for supporting links.")
+    p_map.add_argument("--json", action="store_true")
+
+    p_em = sub.add_parser("evaluate-mapping", help="Score stored mapping links against a gold mapping (v2).")
+    p_em.add_argument("--gold", required=True)
+    p_em.add_argument("--document-id", required=True)
+    p_em.add_argument("--pipeline-version", default="mapping-v1")
+    p_em.add_argument("--out", default=None)
+
+    p_show = sub.add_parser("show-mapping", help="Show one requirement's mapped subgraph.")
+    p_show.add_argument("requirement_id")
+    p_show.add_argument("--document-id", required=True)
+    p_show.add_argument("--pipeline-version", default="mapping-v1")
+    p_show.add_argument("--json", action="store_true")
     return parser
 
 
@@ -265,6 +371,9 @@ _DISPATCH = {
     "evaluate":             cmd_evaluate,
     "find-candidates":      cmd_find_candidates,
     "evaluate-candidates":  cmd_evaluate_candidates,
+    "map-requirements":     cmd_map_requirements,
+    "evaluate-mapping":     cmd_evaluate_mapping,
+    "show-mapping":         cmd_show_mapping,
 }
 
 
@@ -276,7 +385,8 @@ def main(argv=None) -> int:
         stream=sys.stderr,
     )
     args = build_parser().parse_args(argv)
-    if args.command in ("search", "evaluate", "find-candidates", "evaluate-candidates"):
+    if args.command not in ("init-schema", "ingest-requirements", "ingest-graph",
+                            "rebuild-embeddings", "build-vector-indexes"):
         logging.getLogger().setLevel(logging.WARNING)  # keep result output readable
     try:
         result = _DISPATCH[args.command](args, TraceabilityConfig())

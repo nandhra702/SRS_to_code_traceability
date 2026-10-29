@@ -30,7 +30,7 @@ from __future__ import annotations
 import json
 import logging
 from contextlib import contextmanager
-from typing import Any, Dict, Generator, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Generator, Iterable, List, Optional, Sequence, Tuple
 
 from .config import TraceabilityConfig
 from .embedder import EmbeddingResult
@@ -640,19 +640,24 @@ class Store:
         return out
 
     def delete_stale_candidates(
-        self, req_pk: int, pipeline_version: str, keep_link_pks: Iterable[int]
+        self, req_pk: int, pipeline_version: str, keep_link_pks: Iterable[int],
+        *, statuses: Sequence[str] = ("candidate",),
     ) -> int:
         """
-        Remove a requirement's *unreviewed* candidate links (status 'candidate')
-        from a pipeline version that are not in keep_link_pks.  Links that have
-        moved on (pending_verification or a verdict) are never deleted.
+        Remove a requirement's links of *pipeline_version* that are not in
+        keep_link_pks and whose status is still one of *statuses* (unreviewed:
+        'candidate' for the search stage, 'pending_verification' for mapping).
+        Links that carry a verdict are never deleted.
         """
+        bad = set(statuses) - {"candidate", "pending_verification"}
+        if bad:
+            raise ValueError(f"Refusing to delete links with verdict statuses {sorted(bad)}")
         t = self._cfg.table_trace_links
         with self.transaction() as cur:
             cur.execute(
                 f"DELETE FROM {t} WHERE req_pk = %s AND pipeline_version = %s "
-                f"AND status = 'candidate' AND NOT (link_pk = ANY(%s));",
-                (req_pk, pipeline_version, list(keep_link_pks)),
+                f"AND status = ANY(%s) AND NOT (link_pk = ANY(%s));",
+                (req_pk, pipeline_version, list(statuses), list(keep_link_pks)),
             )
             return cur.rowcount
 

@@ -183,12 +183,13 @@ class Retriever:
         fused = self._combine(lists, key=lambda h: h.pk)
         if len(lists) <= 1:
             return fused
-        eligible = self._eligible_channel_counts([h.pk for h in fused], names)
+        eligible = self.eligible_channel_counts([h.pk for h in fused], names)
         for hit in fused:
-            hit.score /= max(eligible.get(hit.pk, len(names)), 1)
+            hit.data["eligible_channels"] = eligible.get(hit.pk, len(names))
+            hit.score /= max(hit.data["eligible_channels"], 1)
         return sorted(fused, key=lambda h: (-h.score, h.external_id))
 
-    def _eligible_channel_counts(self, comp_pks: List[int], names: Sequence[str]) -> Dict[int, int]:
+    def eligible_channel_counts(self, comp_pks: List[int], names: Sequence[str]) -> Dict[int, int]:
         """How many of the fused channels each component could appear in."""
         if not comp_pks:
             return {}

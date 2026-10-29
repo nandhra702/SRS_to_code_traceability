@@ -230,6 +230,82 @@ class Evaluator:
             "per_requirement": details,
         }
 
+    def evaluate_mapping(
+        self,
+        gold: Dict[str, Any],
+        *,
+        document_id: str,
+        pipeline_version: str,
+    ) -> Dict[str, Any]:
+        """
+        Score stored mapping links (requirement_to_component) against the gold.
+
+          direct      vs gold primary links
+          supporting  vs gold supporting links
+          all         vs all gold links (role ignored)
+
+        Micro-averaged precision / recall / F1 over the implemented and partial
+        requirements, plus the links created for requirements with no code
+        (not_implemented / cross_cutting) — false positives the verifier must
+        reject.
+        """
+        store = self._resolver._store
+        doc_pk = self._resolver.document_pk(document_id)
+        links = store.get_trace_links(document_pk=doc_pk, pipeline_version=pipeline_version,
+                                      link_type="requirement_to_component")
+        predicted: Dict[str, Dict[str, set]] = {}
+        for link in links:
+            role = (link["evidence"] or {}).get("role", "direct")
+            predicted.setdefault(link["requirement_id"], {"direct": set(), "supporting": set()})
+            predicted[link["requirement_id"]][role].add(link["component_id"])
+        ingested_ids = {r["requirement_id"] for r in self._resolver._requirements(
+            "r.document_pk = %(doc)s", {"doc": doc_pk})}
+
+        counts = {k: {"tp": 0, "fp": 0, "fn": 0} for k in ("direct", "supporting", "all")}
+        details, no_code = [], {}
+        for req in gold["requirements"]:
+            rid = req["requirement_id"]
+            matched = rid if rid in ingested_ids else self._best_text_match(req["text"], document_id)
+            pred = predicted.get(matched, {"direct": set(), "supporting": set()}) if matched else \
+                {"direct": set(), "supporting": set()}
+            if req["status"] not in ("implemented", "partial"):
+                no_code[rid] = {"status": req["status"],
+                                "links": len(pred["direct"]) + len(pred["supporting"])}
+                continue
+            gold_p = {l["component_id"] for l in req["links"] if l["relevance"] == "primary"}
+            gold_s = {l["component_id"] for l in req["links"] if l["relevance"] == "supporting"}
+            pairs = {"direct": (pred["direct"], gold_p),
+                     "supporting": (pred["supporting"], gold_s),
+                     "all": (pred["direct"] | pred["supporting"], gold_p | gold_s)}
+            for key, (p, g) in pairs.items():
+                counts[key]["tp"] += len(p & g)
+                counts[key]["fp"] += len(p - g)
+                counts[key]["fn"] += len(g - p)
+            details.append({
+                "requirement_id": rid, "matched_to": matched,
+                "direct": sorted(pred["direct"]), "supporting": sorted(pred["supporting"]),
+                "missed_primary": sorted(gold_p - pred["direct"]),
+                "primary_found_as_supporting": sorted((gold_p - pred["direct"]) & pred["supporting"]),
+                "missed_supporting": sorted(gold_s - pred["supporting"] - pred["direct"]),
+                "extra": sorted((pred["direct"] | pred["supporting"]) - gold_p - gold_s),
+            })
+
+        def prf(c):
+            p = c["tp"] / (c["tp"] + c["fp"]) if c["tp"] + c["fp"] else 0.0
+            r = c["tp"] / (c["tp"] + c["fn"]) if c["tp"] + c["fn"] else 0.0
+            f = 2 * p * r / (p + r) if p + r else 0.0
+            return {"precision": round(p, 4), "recall": round(r, 4), "f1": round(f, 4), **c}
+
+        return {
+            "dataset": gold.get("dataset"),
+            "document_id": document_id,
+            "pipeline_version": pipeline_version,
+            "requirements_scored": len(details),
+            "scores": {k: prf(c) for k, c in counts.items()},
+            "requirements_without_code": no_code,
+            "per_requirement": details,
+        }
+
     # ------------------------------------------------------------------
 
     def _repo_components(self, repo_pk: int) -> set:

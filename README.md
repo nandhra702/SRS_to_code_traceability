@@ -4,7 +4,7 @@ This package is the integration layer between **SRS Agent** (requirements) and *
 
 It only consumes the outputs of those tools and never imports either one.
 
-Status: **Phase 1 (schema and ingestion) and Phase 2 (query resolution and retrieval) are complete.** Mapping (Phase 3) and verification (Phase 4) are not built yet. The trace-link and verification tables already exist so those phases can write to them.
+Status: **Phases 1–3 are complete:** schema and ingestion, query resolution and retrieval (including the candidate "search agent"), and the deterministic mapping agent. Verification (Phase 4) is not built yet; the verification table already exists for it.
 
 ## Setup
 
@@ -150,6 +150,59 @@ Best code similarity differs between groups on average, but the ranges overlap, 
 | implemented | 0.64 | 0.45–0.78 |
 | not implemented | 0.50 | 0.45–0.54 |
 | cross-cutting NFRs | 0.23 | — |
+
+## Mapping (Phase 3): the "mapping agent"
+
+```powershell
+& $py -m traceability.cli map-requirements --document-id library-srs-v1.1 --repo-id "library@yi-coder-9b"
+& $py -m traceability.cli evaluate-mapping --gold library_traceability_dataset\gold_standard\gold_standard_mapping.json --document-id library-srs-v1.1
+& $py -m traceability.cli show-mapping FR-016 --document-id library-srs-v1.1
+```
+
+`mapping.py` turns each requirement's stored candidates into a **requirement subgraph** of proposed links. It is deterministic: no LLM is used, and no ID or edge is invented.
+
+**Direct links** are the code believed to implement the requirement:
+- The rank-1 candidate is always direct.
+- A rank 2–3 candidate is direct only if it's *strong*: in the top 3 of at least 75% of the channels it's eligible for.
+- A class is a *container*: if one of its own methods is also a top candidate, the class becomes a supporting link and the method is used instead.
+
+**Supporting links** are one hop from each direct component, capped at 6 per requirement. They come from two evidence sources that are always labelled separately:
+
+| Source | Edges used |
+|---|---|
+| `docagent` | DocAgent's typed edges: the containing class, `calls`, `instantiates` (plus the instantiated class's `__init__`), and callers. |
+| `source` | Call sites in the direct component's own code, e.g. `member.can_borrow()` on line 24 → `Member.can_borrow`. A name is resolved only if it's unique in the repo, or unique among the requirement's candidates; ambiguous names are skipped. |
+
+DocAgent can't resolve calls on variables, so the `source` evidence matters: it raises supporting recall from 0.41 to 0.76.
+
+**Docstring links:**
+- requirement → docstring, for direct components matched through a docstring channel;
+- docstring → owning component, a database fact stored as `supported` with basis `ownership`.
+
+All requirement links are stored as `pending_verification` with their evidence: the selection reason, every channel's rank, and the edges with their source and line numbers. Re-runs replace unverified links, and links with a verdict are never touched. `show-mapping` prints one requirement's subgraph: its components, their roles, and the edges between them.
+
+**Results on the library dataset** (real pipeline output: yi-coder docstrings + SRS Agent requirements, 33 scored requirements):
+
+| Links | Precision | Recall | F1 |
+|---|---|---|---|
+| direct vs gold primary | 0.714 | 0.921 | 0.805 |
+| supporting vs gold supporting | 0.206 | 0.759 | 0.324 |
+| all links vs all gold links | 0.391 | **0.910** | 0.547 |
+
+What these numbers mean:
+- **91% of the gold's code ends up inside the requirement's subgraph.**
+- **Supporting precision is low by design.** Supporting links are context for the verifier, not claims, and many "extra" ones are real callees, e.g. `Book.checkout_copy` for checkout. The gold's supporting set is narrower.
+- **The 3 not-implemented and 3 cross-cutting requirements still get 2–7 links each.** The verifier must reject these.
+
+Rules were chosen by measurement:
+
+| Rule set | Direct precision | Direct recall |
+|---|---|---|
+| Rank 1 only | 0.91 | 0.79 |
+| Top 3 | 0.37 | 0.97 |
+| **Chosen rules** | **0.71** | **0.92** |
+
+Recall was favoured, because the verifier filters out false positives.
 
 ## Design
 
