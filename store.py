@@ -589,6 +589,100 @@ class Store:
         return len(rows), skipped
 
     # ------------------------------------------------------------------
+    # Trace links
+    # ------------------------------------------------------------------
+
+    def upsert_trace_links(self, records: List[Dict[str, Any]]) -> Dict[Tuple, int]:
+        """
+        Insert or update trace links.
+
+        Each record: link_type, req_pk / docstring_pk / comp_pk (as the link
+        type requires), status, retrieval_method, scores, evidence,
+        pipeline_version.  The natural key is (link_type, req_pk, docstring_pk,
+        comp_pk, pipeline_version), so re-running a stage updates its links.
+        A link that already has a verdict keeps its status.
+
+        Returns:
+            {(link_type, req_pk, docstring_pk, comp_pk): link_pk}
+        """
+        t = self._cfg.table_trace_links
+        sql = f"""
+            INSERT INTO {t} (link_type, req_pk, docstring_pk, comp_pk, status,
+                             retrieval_method, scores, evidence, pipeline_version)
+            VALUES (%(link_type)s, %(req_pk)s, %(docstring_pk)s, %(comp_pk)s, %(status)s,
+                    %(retrieval_method)s, %(scores)s, %(evidence)s, %(pipeline_version)s)
+            ON CONFLICT (link_type, req_pk, docstring_pk, comp_pk, pipeline_version) DO UPDATE SET
+                status           = CASE WHEN {t}.status IN ('candidate', 'pending_verification')
+                                        THEN EXCLUDED.status ELSE {t}.status END,
+                retrieval_method = EXCLUDED.retrieval_method,
+                scores           = EXCLUDED.scores,
+                evidence         = EXCLUDED.evidence,
+                updated_at       = NOW()
+            RETURNING link_pk;
+        """
+        out: Dict[Tuple, int] = {}
+        with self.transaction() as cur:
+            for rec in records:
+                params = {
+                    "link_type":        rec["link_type"],
+                    "req_pk":           rec.get("req_pk"),
+                    "docstring_pk":     rec.get("docstring_pk"),
+                    "comp_pk":          rec.get("comp_pk"),
+                    "status":           rec.get("status", "pending_verification"),
+                    "retrieval_method": rec.get("retrieval_method"),
+                    "scores":           self._jsonb(rec.get("scores") or {}),
+                    "evidence":         self._jsonb(rec.get("evidence") or {}),
+                    "pipeline_version": rec["pipeline_version"],
+                }
+                cur.execute(sql, params)
+                key = (params["link_type"], params["req_pk"], params["docstring_pk"], params["comp_pk"])
+                out[key] = cur.fetchone()["link_pk"]
+        return out
+
+    def delete_stale_candidates(
+        self, req_pk: int, pipeline_version: str, keep_link_pks: Iterable[int]
+    ) -> int:
+        """
+        Remove a requirement's *unreviewed* candidate links (status 'candidate')
+        from a pipeline version that are not in keep_link_pks.  Links that have
+        moved on (pending_verification or a verdict) are never deleted.
+        """
+        t = self._cfg.table_trace_links
+        with self.transaction() as cur:
+            cur.execute(
+                f"DELETE FROM {t} WHERE req_pk = %s AND pipeline_version = %s "
+                f"AND status = 'candidate' AND NOT (link_pk = ANY(%s));",
+                (req_pk, pipeline_version, list(keep_link_pks)),
+            )
+            return cur.rowcount
+
+    def get_trace_links(
+        self, *, document_pk: Optional[int] = None, pipeline_version: Optional[str] = None,
+        link_type: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Links joined with requirement and component identity, for reports."""
+        cfg = self._cfg
+        where, params = ["TRUE"], {}
+        if document_pk is not None:
+            where.append("r.document_pk = %(doc)s")
+            params["doc"] = document_pk
+        if pipeline_version is not None:
+            where.append("l.pipeline_version = %(pv)s")
+            params["pv"] = pipeline_version
+        if link_type is not None:
+            where.append("l.link_type = %(lt)s")
+            params["lt"] = link_type
+        sql = (f"SELECT l.*, r.requirement_id, c.component_id "
+               f"FROM {cfg.table_trace_links} l "
+               f"LEFT JOIN {cfg.table_requirements} r ON r.req_pk = l.req_pk "
+               f"LEFT JOIN {cfg.table_components} c ON c.comp_pk = l.comp_pk "
+               f"WHERE {' AND '.join(where)} "
+               f"ORDER BY r.req_pk, (l.evidence->>'rank')::int NULLS LAST, l.link_pk;")
+        with self.transaction() as cur:
+            cur.execute(sql, params)
+            return [dict(r) for r in cur.fetchall()]
+
+    # ------------------------------------------------------------------
     # Embedding maintenance (rebuild-embeddings)
     # ------------------------------------------------------------------
 

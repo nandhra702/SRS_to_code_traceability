@@ -172,6 +172,64 @@ class Evaluator:
             report["matching"] = matching
         return report
 
+    def evaluate_candidates(
+        self,
+        gold: Dict[str, Any],
+        *,
+        document_id: str,
+        pipeline_version: str,
+        ks: Sequence[int] = KS,
+    ) -> Dict[str, Any]:
+        """
+        Score the *stored* candidate links of a document (candidate search
+        stage output) against the gold.  Gold requirements are matched to
+        ingested requirements by ID, else by text.
+        """
+        store = self._resolver._store
+        doc_pk = self._resolver.document_pk(document_id)
+        links = store.get_trace_links(document_pk=doc_pk, pipeline_version=pipeline_version,
+                                      link_type="requirement_to_component")
+        by_req: Dict[str, List[str]] = {}
+        for link in links:
+            by_req.setdefault(link["requirement_id"], []).append(link["component_id"])
+
+        rows, details = [], []
+        matching = {"by_id": 0, "by_text": 0, "unmatched": []}
+        ingested_ids = {r["requirement_id"] for r in self._resolver._requirements(
+            "r.document_pk = %(doc)s", {"doc": doc_pk})}
+        for req in gold["requirements"]:
+            if req["status"] not in ("implemented", "partial"):
+                continue
+            rid = req["requirement_id"]
+            if rid in ingested_ids:
+                matched, how = rid, "by_id"
+            else:
+                matched = self._best_text_match(req["text"], document_id)
+                how = "by_text" if matched else "unmatched"
+            if how == "unmatched":
+                matching["unmatched"].append(rid)
+            else:
+                matching[how] += 1
+            ranked = by_req.get(matched, []) if matched else []
+            primary = {l["component_id"] for l in req["links"] if l["relevance"] == "primary"}
+            gains = {l["component_id"]: GAIN[l["relevance"]] for l in req["links"]}
+            rows.append(score_ranking(ranked, primary, gains, ks))
+            details.append({"requirement_id": rid, "matched_to": matched,
+                            "candidates": len(ranked),
+                            "primary_ranks": {p: (ranked.index(p) + 1 if p in ranked else None)
+                                              for p in sorted(primary)}})
+        return {
+            "dataset": gold.get("dataset"),
+            "document_id": document_id,
+            "pipeline_version": pipeline_version,
+            "requirements_scored": len(rows),
+            "matching": matching,
+            "scores": mean_scores(rows),
+            "missed": [d["requirement_id"] for d in details
+                       if not any(r is not None for r in d["primary_ranks"].values())],
+            "per_requirement": details,
+        }
+
     # ------------------------------------------------------------------
 
     def _repo_components(self, repo_pk: int) -> set:

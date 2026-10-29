@@ -10,6 +10,8 @@ rebuild-embeddings     Re-embed rows that are missing/stale (model or text chang
 build-vector-indexes   Build optional HNSW indexes (exact search is used otherwise).
 search                 Search requirements, docstrings and code (lexical + vector, fused).
 evaluate               Score retrieval against a gold-standard mapping (v2).
+find-candidates        Search agent: top-N code candidates per requirement, stored as links.
+evaluate-candidates    Score stored candidates against a gold-standard mapping (v2).
 
 Each ingest prints a JSON report (counts, skipped/truncated texts, skipped
 relationships) to stdout; progress logs go to stderr.
@@ -143,6 +145,50 @@ def cmd_evaluate(args: argparse.Namespace, cfg: TraceabilityConfig):
     return format_report(report) + (f"\n\nFull report written to {args.out}" if args.out else "")
 
 
+def cmd_find_candidates(args: argparse.Namespace, cfg: TraceabilityConfig):
+    from .candidates import CandidateSearch
+    from .query import QueryResolver
+    from .retrieval import Retriever
+
+    types = [t.strip() for t in args.types.split(",")] if args.types else None
+    with Store(cfg) as store:
+        report = CandidateSearch(store, QueryResolver(store), Retriever(store)).run(
+            args.document_id, args.repo_id, top_n=args.top_n,
+            candidate_k=args.candidate_k, types=types, pipeline_version=args.pipeline_version)
+    if args.json:
+        return report
+    lines = [f"Candidates for {report['requirements']} requirement(s) of {report['document_id']} "
+             f"in {report['repo_id']} ({report['links_stored']} links, {report['pipeline_version']})", ""]
+    for r in report["per_requirement"]:
+        sig = r["signals"]
+        top = ", ".join(c.split(".", 1)[-1] for c in r["candidates"][:3])
+        lines.append(f"{r['requirement_id']:10s} sim={sig['best_code_similarity']} "
+                     f"agree={'Y' if sig['agreement'] else 'n'}  top: {top}")
+    return "\n".join(lines)
+
+
+def cmd_evaluate_candidates(args: argparse.Namespace, cfg: TraceabilityConfig):
+    from .evaluation import Evaluator, load_gold
+    from .query import QueryResolver
+    from .retrieval import Retriever
+
+    with Store(cfg) as store:
+        report = Evaluator(QueryResolver(store), Retriever(store)).evaluate_candidates(
+            load_gold(args.gold), document_id=args.document_id,
+            pipeline_version=args.pipeline_version)
+    if args.out:
+        with open(args.out, "w", encoding="utf-8") as fh:
+            json.dump(report, fh, indent=2, default=str)
+    s, m = report["scores"], report["matching"]
+    return "\n".join([
+        f"Stored candidates ({report['pipeline_version']}) for {report['document_id']}: "
+        f"{report['requirements_scored']} gold requirements scored",
+        "  " + "  ".join(f"{k}={v:.3f}" for k, v in s.items()),
+        f"  matching: {m['by_id']} by ID, {m['by_text']} by text, unmatched {m['unmatched']}",
+        f"  primary component not among candidates: {report['missed']}",
+    ])
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m traceability.cli",
@@ -190,6 +236,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_eval.add_argument("--query-source", default="gold_text", choices=["gold_text", "ingested"])
     p_eval.add_argument("--candidate-k", type=int, default=50)
     p_eval.add_argument("--out", default=None, help="Write the full JSON report here.")
+
+    p_cand = sub.add_parser("find-candidates",
+                            help="Search agent: store top-N code candidates for every requirement of a document.")
+    p_cand.add_argument("--document-id", required=True)
+    p_cand.add_argument("--repo-id", required=True)
+    p_cand.add_argument("--top-n", type=int, default=10)
+    p_cand.add_argument("--candidate-k", type=int, default=50)
+    p_cand.add_argument("--types", default=None, help="e.g. functional,non-functional (default: all)")
+    p_cand.add_argument("--pipeline-version", default="candidates-v1")
+    p_cand.add_argument("--json", action="store_true")
+
+    p_ec = sub.add_parser("evaluate-candidates", help="Score stored candidates against a gold mapping (v2).")
+    p_ec.add_argument("--gold", required=True)
+    p_ec.add_argument("--document-id", required=True)
+    p_ec.add_argument("--pipeline-version", default="candidates-v1")
+    p_ec.add_argument("--out", default=None)
     return parser
 
 
@@ -201,6 +263,8 @@ _DISPATCH = {
     "build-vector-indexes": cmd_build_vector_indexes,
     "search":               cmd_search,
     "evaluate":             cmd_evaluate,
+    "find-candidates":      cmd_find_candidates,
+    "evaluate-candidates":  cmd_evaluate_candidates,
 }
 
 
@@ -212,7 +276,7 @@ def main(argv=None) -> int:
         stream=sys.stderr,
     )
     args = build_parser().parse_args(argv)
-    if args.command in ("search", "evaluate"):
+    if args.command in ("search", "evaluate", "find-candidates", "evaluate-candidates"):
         logging.getLogger().setLevel(logging.WARNING)  # keep result output readable
     try:
         result = _DISPATCH[args.command](args, TraceabilityConfig())
