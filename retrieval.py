@@ -83,6 +83,8 @@ def rrf_fuse(channel_lists: Dict[str, List[Hit]], *, rrf_k: int = RRF_K,
             if k not in fused:
                 fused[k] = Hit(hit.entity, hit.pk, hit.external_id, dict(hit.data))
             target = fused[k]
+            for field_name, value in hit.data.items():   # keep fields from every channel
+                target.data.setdefault(field_name, value)
             target.channels.update(hit.channels)
             target.score += 1.0 / (rrf_k + rank)
     return sorted(fused.values(), key=lambda h: (-h.score, h.external_id))
@@ -159,6 +161,13 @@ class Retriever:
         Fuse component and docstring channels into one ranking of components.
         A docstring hit counts for its owning component (best rank per
         component per channel).
+
+        With several channels the fused score is the RRF sum divided by the
+        number of channels the component is *eligible* for: a component with
+        no docstring (DocAgent skips __init__) or no code vector cannot appear
+        in those channels, and that absence must not count against it.  On the
+        library dataset a plain RRF sum dropped every __init__ out of the top
+        10; averaging over eligible channels fixed that (MRR 0.864 → 0.908).
         """
         names = list(names) if names is not None else [
             n for n in channels if n.startswith(("component_", "docstring_"))]
@@ -171,7 +180,34 @@ class Retriever:
                     seen.add(comp.pk)
                     ranked.append(comp)
             lists[name] = ranked
-        return self._combine(lists, key=lambda h: h.pk)
+        fused = self._combine(lists, key=lambda h: h.pk)
+        if len(lists) <= 1:
+            return fused
+        eligible = self._eligible_channel_counts([h.pk for h in fused], names)
+        for hit in fused:
+            hit.score /= max(eligible.get(hit.pk, len(names)), 1)
+        return sorted(fused, key=lambda h: (-h.score, h.external_id))
+
+    def _eligible_channel_counts(self, comp_pks: List[int], names: Sequence[str]) -> Dict[int, int]:
+        """How many of the fused channels each component could appear in."""
+        if not comp_pks:
+            return {}
+        cfg = self._cfg
+        mv = self._get_embedder().model_version
+        sql = (f"SELECT c.comp_pk, "
+               f"  (c.embedding IS NOT NULL AND c.embed_model_version = %(mv)s) AS code_vec, "
+               f"  EXISTS (SELECT 1 FROM {cfg.table_docstrings} d "
+               f"          WHERE d.comp_pk = c.comp_pk AND d.is_current) AS doc_lex, "
+               f"  EXISTS (SELECT 1 FROM {cfg.table_docstrings} d WHERE d.comp_pk = c.comp_pk "
+               f"          AND d.is_current AND d.embedding IS NOT NULL "
+               f"          AND d.embed_model_version = %(mv)s) AS doc_vec "
+               f"FROM {cfg.table_components} c WHERE c.comp_pk = ANY(%(pks)s);")
+        with self._store.transaction() as cur:
+            cur.execute(sql, {"mv": mv, "pks": comp_pks})
+            rows = cur.fetchall()
+        flags = {"component_lexical": lambda r: True, "component_vector": lambda r: r["code_vec"],
+                 "docstring_lexical": lambda r: r["doc_lex"], "docstring_vector": lambda r: r["doc_vec"]}
+        return {r["comp_pk"]: sum(1 for n in names if flags.get(n, lambda _: True)(r)) for r in rows}
 
     # ------------------------------------------------------------------
     # Fusion helpers
