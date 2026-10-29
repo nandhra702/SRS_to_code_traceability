@@ -69,6 +69,11 @@ $py = ".\SRS_to_code_traceability\.venv\Scripts\python.exe"
     --repo-id "library@yi-coder-9b" --out eval_gold_text.json
 & $py -m traceability.cli evaluate --gold library_traceability_dataset\gold_standard\gold_standard_mapping.json `
     --repo-id "library@yi-coder-9b" --document-id library-srs-v1.1 --query-source ingested
+
+# Search agent: store the top-N candidates for every requirement, then score them
+& $py -m traceability.cli find-candidates --document-id library-srs-v1.1 --repo-id "library@yi-coder-9b" --top-n 10
+& $py -m traceability.cli evaluate-candidates --gold library_traceability_dataset\gold_standard\gold_standard_mapping.json `
+    --document-id library-srs-v1.1
 ```
 
 ## Retrieval (Phase 2)
@@ -110,6 +115,27 @@ There are two query sources:
 | code_hybrid | 0.818 | 0.970 | 0.985 | 0.884 | 0.872 |
 
 Most top-1 misses happen because the *containing class* outranks the method that does the work. A class's source includes all of its methods, so it matches almost everything about that class.
+
+### Candidate search stage (the "search agent")
+
+`find-candidates` (`candidates.py`) works through a document's requirements one by one, in document order. For each requirement it:
+- runs the fused code + docstring ranking;
+- stores the top N as `requirement_to_component` links with status `candidate`;
+- records the fused rank and every channel's rank and score with each link.
+
+Re-runs are idempotent. Unreviewed candidates that drop out of the top N are removed; links that have moved past `candidate` are never touched.
+
+The stage makes **no found / not-found decision**; that is the verifier's job. It reports signals instead: best code and docstring similarity, channel agreement, and the number of lexical hits.
+
+On the library dataset (code only, gold-text requirements), the right component is among the top 10 candidates for **every** implemented or partial requirement: hit@10 = 1.0, MRR 0.89.
+
+Best code similarity differs between groups on average, but the ranges overlap, so no threshold can decide "not found":
+
+| requirement status | mean similarity | range |
+|---|---|---|
+| implemented | 0.64 | 0.45–0.78 |
+| not implemented | 0.50 | 0.45–0.54 |
+| cross-cutting NFRs | 0.23 | — |
 
 ## Design
 

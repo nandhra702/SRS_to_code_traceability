@@ -155,12 +155,36 @@ class QueryResolver:
             return ResolvedQuery(mode="adhoc_text", status="ok", query_text=text.strip(), **base)
         return ResolvedQuery(mode="keyword", status="ok", query_text=text.strip(), **base)
 
-    def _requirements(self, where: str, params: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def document_requirements(
+        self,
+        document_id: str,
+        *,
+        repo_id: Optional[str] = None,
+        types: Optional[List[str]] = None,
+    ) -> List[ResolvedQuery]:
+        """
+        Every current requirement of a document as a resolved query, in
+        document (ingestion) order — the input of the candidate search stage.
+        """
+        base = dict(original="", document_pk=self.document_pk(document_id),
+                    repo_pk=self.repo_pk(repo_id))
+        where, params = "r.document_pk = %(doc)s", {"doc": base["document_pk"]}
+        if types:
+            where += " AND r.type = ANY(%(types)s)"
+            params["types"] = list(types)
+        out = []
+        for row in self._requirements(where, params, order="r.req_pk"):
+            q = self._requirement_query("requirement_id", row, dict(base, original=row["requirement_id"]))
+            out.append(q)
+        return out
+
+    def _requirements(self, where: str, params: Dict[str, Any],
+                      order: str = "d.document_id, r.requirement_id") -> List[Dict[str, Any]]:
         cfg = self._cfg
-        sql = (f"SELECT {_REQ_COLUMNS}, d.document_id "
+        sql = (f"SELECT {_REQ_COLUMNS}, r.type, d.document_id "
                f"FROM {cfg.table_requirements} r "
                f"JOIN {cfg.table_srs_documents} d USING (document_pk) "
-               f"WHERE r.is_current AND {where} ORDER BY d.document_id, r.requirement_id;")
+               f"WHERE r.is_current AND {where} ORDER BY {order};")
         with self._store.transaction() as cur:
             cur.execute(sql, params)
             return [dict(r) for r in cur.fetchall()]
