@@ -8,6 +8,8 @@ ingest-requirements    Load an SRS Agent output file.
 ingest-graph           Load a DocAgent dependency graph (legacy or V1).
 rebuild-embeddings     Re-embed rows that are missing/stale (model or text changed).
 build-vector-indexes   Build optional HNSW indexes (exact search is used otherwise).
+search                 Search requirements, docstrings and code (lexical + vector, fused).
+evaluate               Score retrieval against a gold-standard mapping (v2).
 
 Each ingest prints a JSON report (counts, skipped/truncated texts, skipped
 relationships) to stdout; progress logs go to stderr.
@@ -79,6 +81,68 @@ def cmd_build_vector_indexes(args: argparse.Namespace, cfg: TraceabilityConfig) 
     return {"vector_indexes": "hnsw"}
 
 
+def cmd_search(args: argparse.Namespace, cfg: TraceabilityConfig):
+    from .query import QueryResolver
+    from .retrieval import Retriever
+
+    entities = tuple(e.strip() for e in args.entities.split(",") if e.strip())
+    with Store(cfg) as store:
+        query = QueryResolver(store).resolve(
+            args.query, mode=args.mode, document_id=args.document_id, repo_id=args.repo_id)
+        response = Retriever(store).search(
+            query, method=args.method, entities=entities,
+            top_k=args.top_k, candidate_k=args.candidate_k)
+    return response.to_dict() if args.json else format_search(response)
+
+
+def format_search(response) -> str:
+    q = response.query
+    lines = [f"Query: {q.original!r}  ->  mode={q.mode}, status={q.status}, method={response.method}"]
+    if q.requirement:
+        lines.append(f"Resolved requirement {q.requirement['requirement_id']}: {q.requirement['title']}")
+    if q.message:
+        lines.append(q.message)
+    for c in q.candidates:
+        lines.append(f"  candidate: {c}")
+
+    def chan(h):
+        return ", ".join(f"{k.split('_', 1)[1]} #{v['rank']} ({v['score']:.3f})"
+                         for k, v in sorted(h.channels.items()))
+
+    sections = [(e, response.results[e]) for e in ("requirement", "docstring", "component")
+                if e in response.results]
+    if {"docstring", "component"} & set(response.results):
+        sections.append(("implementation candidates (code + docstrings fused)", response.components))
+    for title, hits in sections:
+        lines.append(f"\n== {title} ==")
+        if not hits:
+            lines.append("  (no results)")
+        for i, h in enumerate(hits, start=1):
+            d = h.data
+            where = f"  {d['path']}:{d['start_line']}-{d['end_line']}" if "path" in d else ""
+            extra = f" [{d['docstring_kind']} docstring]" if "docstring_kind" in d else ""
+            extra += f" [via {d['via_docstring']} docstring]" if "via_docstring" in d else ""
+            label = f"{h.external_id}: {d['title']}" if h.entity == "requirement" else h.external_id
+            lines.append(f"{i:3d}. {h.score:.4f}  {label}{extra}{where}")
+            lines.append(f"       {chan(h)}")
+    return "\n".join(lines)
+
+
+def cmd_evaluate(args: argparse.Namespace, cfg: TraceabilityConfig):
+    from .evaluation import Evaluator, format_report, load_gold
+    from .query import QueryResolver
+    from .retrieval import Retriever
+
+    with Store(cfg) as store:
+        report = Evaluator(QueryResolver(store), Retriever(store)).evaluate(
+            load_gold(args.gold), repo_id=args.repo_id, document_id=args.document_id,
+            query_source=args.query_source, candidate_k=args.candidate_k)
+    if args.out:
+        with open(args.out, "w", encoding="utf-8") as fh:
+            json.dump(report, fh, indent=2, default=str)
+    return format_report(report) + (f"\n\nFull report written to {args.out}" if args.out else "")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m traceability.cli",
@@ -106,6 +170,26 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("rebuild-embeddings", help="Re-embed missing or stale rows.")
     sub.add_parser("build-vector-indexes", help="Build optional HNSW indexes.")
+
+    p_search = sub.add_parser("search", help="Search requirements, docstrings and code.")
+    p_search.add_argument("query", help="Requirement ID, requirement text, or keywords.")
+    p_search.add_argument("--repo-id", default=None, help="Restrict code/docstring results to a repository.")
+    p_search.add_argument("--document-id", default=None, help="SRS document scope for requirement IDs.")
+    p_search.add_argument("--mode", default="auto", choices=["auto", "id", "text", "adhoc", "keyword"])
+    p_search.add_argument("--method", default="hybrid", choices=["hybrid", "lexical", "vector"])
+    p_search.add_argument("--entities", default="requirement,docstring,component",
+                          help="Comma-separated subset of requirement,docstring,component.")
+    p_search.add_argument("--top-k", type=int, default=10)
+    p_search.add_argument("--candidate-k", type=int, default=50, help="Hits per channel before fusion.")
+    p_search.add_argument("--json", action="store_true", help="Print the full result as JSON.")
+
+    p_eval = sub.add_parser("evaluate", help="Score retrieval against a gold-standard mapping (v2).")
+    p_eval.add_argument("--gold", required=True, help="Path to gold_standard_mapping.json (v2).")
+    p_eval.add_argument("--repo-id", required=True)
+    p_eval.add_argument("--document-id", default=None, help="Needed for --query-source ingested.")
+    p_eval.add_argument("--query-source", default="gold_text", choices=["gold_text", "ingested"])
+    p_eval.add_argument("--candidate-k", type=int, default=50)
+    p_eval.add_argument("--out", default=None, help="Write the full JSON report here.")
     return parser
 
 
@@ -115,6 +199,8 @@ _DISPATCH = {
     "ingest-graph":         cmd_ingest_graph,
     "rebuild-embeddings":   cmd_rebuild_embeddings,
     "build-vector-indexes": cmd_build_vector_indexes,
+    "search":               cmd_search,
+    "evaluate":             cmd_evaluate,
 }
 
 
@@ -126,12 +212,14 @@ def main(argv=None) -> int:
         stream=sys.stderr,
     )
     args = build_parser().parse_args(argv)
+    if args.command in ("search", "evaluate"):
+        logging.getLogger().setLevel(logging.WARNING)  # keep result output readable
     try:
         result = _DISPATCH[args.command](args, TraceabilityConfig())
     except (SchemaVersionError, DimensionMismatchError, ValueError, FileNotFoundError) as exc:
         logger.error("%s: %s", type(exc).__name__, exc)
         return 2
-    print(json.dumps(result, indent=2, default=str))
+    print(result if isinstance(result, str) else json.dumps(result, indent=2, default=str))
     return 0
 
 

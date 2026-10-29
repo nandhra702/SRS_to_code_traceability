@@ -1,0 +1,2532 @@
+{
+  "schema_version": "2.0",
+  "dataset": "library_system",
+  "code_root": "codebase",
+  "srs_file": "srs/SRS_Library_Management_System.docx",
+  "srs_version": "1.1",
+  "line_numbering": "1-based, inclusive, original code before any docstring insertion",
+  "requirements": [
+    {
+      "requirement_id": "FR-001",
+      "title": "Maintain catalog",
+      "text": "The system shall maintain a catalog of books keyed by ISBN, starting empty, and shall be able to return the full list of books in the catalog.",
+      "type": "functional",
+      "status": "implemented",
+      "links": [
+        {
+          "component_id": "library_system.services.catalog.Catalog.__init__",
+          "component_type": "method",
+          "path": "library_system/services/catalog.py",
+          "start_line": 5,
+          "end_line": 6,
+          "anchor_text": "def __init__(self):",
+          "relevance": "primary",
+          "evidence": [
+            {
+              "kind": "block",
+              "path": "library_system/services/catalog.py",
+              "start_line": 6,
+              "end_line": 6,
+              "anchor_text": "self._books = {}"
+            }
+          ]
+        },
+        {
+          "component_id": "library_system.services.catalog.Catalog.all_books",
+          "component_type": "method",
+          "path": "library_system/services/catalog.py",
+          "start_line": 43,
+          "end_line": 44,
+          "anchor_text": "def all_books(self):",
+          "relevance": "primary",
+          "evidence": [
+            {
+              "kind": "block",
+              "path": "library_system/services/catalog.py",
+              "start_line": 44,
+              "end_line": 44,
+              "anchor_text": "return list(self._books.values())"
+            }
+          ]
+        },
+        {
+          "component_id": "library_system.services.catalog.Catalog",
+          "component_type": "class",
+          "path": "library_system/services/catalog.py",
+          "start_line": 4,
+          "end_line": 44,
+          "anchor_text": "class Catalog:",
+          "relevance": "supporting",
+          "evidence": []
+        },
+        {
+          "component_id": "library_system.services.catalog.Catalog.add_book",
+          "component_type": "method",
+          "path": "library_system/services/catalog.py",
+          "start_line": 8,
+          "end_line": 16,
+          "anchor_text": "def add_book(self, isbn, title, author, year, copies=1):",
+          "relevance": "supporting",
+          "evidence": [
+            {
+              "kind": "block",
+              "path": "library_system/services/catalog.py",
+              "start_line": 15,
+              "end_line": 15,
+              "anchor_text": "self._books[isbn] = book"
+            }
+          ]
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "FR-001.1",
+          "text": "The catalog starts empty.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/catalog.py",
+              "start_line": 6,
+              "end_line": 6
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-001.2",
+          "text": "Books in the catalog are keyed by ISBN.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/catalog.py",
+              "start_line": 15,
+              "end_line": 15
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-001.3",
+          "text": "The full list of books in the catalog can be returned.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/catalog.py",
+              "start_line": 44,
+              "end_line": 44
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "requirement_id": "FR-002",
+      "title": "Add a book",
+      "text": "The system shall allow a librarian to add a book with ISBN, title, author, publication year and number of copies (default 1). The system shall reject the book when:\n- the ISBN, ignoring hyphens, does not contain exactly 10 or 13 characters;\n- the number of copies is less than 1;\n- the publication year is later than the current year.\n\nA newly added book shall have all of its copies available.",
+      "type": "functional",
+      "status": "implemented",
+      "links": [
+        {
+          "component_id": "library_system.services.catalog.Catalog.add_book",
+          "component_type": "method",
+          "path": "library_system/services/catalog.py",
+          "start_line": 8,
+          "end_line": 16,
+          "anchor_text": "def add_book(self, isbn, title, author, year, copies=1):",
+          "relevance": "primary",
+          "evidence": [
+            {
+              "kind": "block",
+              "path": "library_system/services/catalog.py",
+              "start_line": 14,
+              "end_line": 16,
+              "anchor_text": "book = Book(isbn, title, author, year, copies)"
+            }
+          ]
+        },
+        {
+          "component_id": "library_system.models.book.Book.__init__",
+          "component_type": "method",
+          "path": "library_system/models/book.py",
+          "start_line": 5,
+          "end_line": 17,
+          "anchor_text": "def __init__(self, isbn, title, author, year, copies=1):",
+          "relevance": "primary",
+          "evidence": [
+            {
+              "kind": "block",
+              "path": "library_system/models/book.py",
+              "start_line": 6,
+              "end_line": 11,
+              "anchor_text": "if not isbn or len(isbn.replace(\"-\", \"\")) not in (10, 13):"
+            },
+            {
+              "kind": "block",
+              "path": "library_system/models/book.py",
+              "start_line": 16,
+              "end_line": 17,
+              "anchor_text": "self.total_copies = copies"
+            }
+          ]
+        },
+        {
+          "component_id": "library_system.models.book.Book",
+          "component_type": "class",
+          "path": "library_system/models/book.py",
+          "start_line": 4,
+          "end_line": 40,
+          "anchor_text": "class Book:",
+          "relevance": "supporting",
+          "evidence": []
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "FR-002.1",
+          "text": "A book is rejected when its ISBN, ignoring hyphens, is not 10 or 13 characters long.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/models/book.py",
+              "start_line": 6,
+              "end_line": 7
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-002.2",
+          "text": "A book is rejected when the number of copies is less than 1.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/models/book.py",
+              "start_line": 8,
+              "end_line": 9
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-002.3",
+          "text": "A book is rejected when its publication year is later than the current year.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/models/book.py",
+              "start_line": 10,
+              "end_line": 11
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-002.4",
+          "text": "The number of copies defaults to 1.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/models/book.py",
+              "start_line": 5,
+              "end_line": 5
+            },
+            {
+              "path": "library_system/services/catalog.py",
+              "start_line": 8,
+              "end_line": 8
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-002.5",
+          "text": "A newly added book has all of its copies available.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/models/book.py",
+              "start_line": 16,
+              "end_line": 17
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "requirement_id": "FR-003",
+      "title": "Merge copies for an existing ISBN",
+      "text": "When a book is added with an ISBN that already exists in the catalog, the system shall not create a new entry; instead it shall increase both the total and the available copy counts of the existing book by the number of copies added, and return the existing book.",
+      "type": "functional",
+      "status": "implemented",
+      "links": [
+        {
+          "component_id": "library_system.services.catalog.Catalog.add_book",
+          "component_type": "method",
+          "path": "library_system/services/catalog.py",
+          "start_line": 8,
+          "end_line": 16,
+          "anchor_text": "def add_book(self, isbn, title, author, year, copies=1):",
+          "relevance": "primary",
+          "evidence": [
+            {
+              "kind": "block",
+              "path": "library_system/services/catalog.py",
+              "start_line": 9,
+              "end_line": 13,
+              "anchor_text": "if isbn in self._books:"
+            }
+          ]
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "FR-003.1",
+          "text": "Adding an existing ISBN does not create a new entry and returns the existing book.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/catalog.py",
+              "start_line": 9,
+              "end_line": 10
+            },
+            {
+              "path": "library_system/services/catalog.py",
+              "start_line": 13,
+              "end_line": 13
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-003.2",
+          "text": "Total and available copies of the existing book increase by the number added.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/catalog.py",
+              "start_line": 11,
+              "end_line": 12
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "requirement_id": "FR-004",
+      "title": "Remove a book",
+      "text": "The system shall allow a book to be removed from the catalog by ISBN. Removal shall be refused while any copy of that book is on loan (available copies differ from total copies).",
+      "type": "functional",
+      "status": "implemented",
+      "links": [
+        {
+          "component_id": "library_system.services.catalog.Catalog.remove_book",
+          "component_type": "method",
+          "path": "library_system/services/catalog.py",
+          "start_line": 18,
+          "end_line": 22,
+          "anchor_text": "def remove_book(self, isbn):",
+          "relevance": "primary",
+          "evidence": [
+            {
+              "kind": "block",
+              "path": "library_system/services/catalog.py",
+              "start_line": 20,
+              "end_line": 22,
+              "anchor_text": "if book.available_copies != book.total_copies:"
+            }
+          ]
+        },
+        {
+          "component_id": "library_system.services.catalog.Catalog.get_book",
+          "component_type": "method",
+          "path": "library_system/services/catalog.py",
+          "start_line": 24,
+          "end_line": 27,
+          "anchor_text": "def get_book(self, isbn):",
+          "relevance": "supporting",
+          "evidence": []
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "FR-004.1",
+          "text": "A book can be removed from the catalog by ISBN.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/catalog.py",
+              "start_line": 19,
+              "end_line": 19
+            },
+            {
+              "path": "library_system/services/catalog.py",
+              "start_line": 22,
+              "end_line": 22
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-004.2",
+          "text": "Removal is refused while any copy is on loan.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/catalog.py",
+              "start_line": 20,
+              "end_line": 21
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "requirement_id": "FR-005",
+      "title": "Look up a book",
+      "text": "The system shall return the book for a given ISBN, and shall raise an error stating that no book exists when the ISBN is not in the catalog.",
+      "type": "functional",
+      "status": "implemented",
+      "links": [
+        {
+          "component_id": "library_system.services.catalog.Catalog.get_book",
+          "component_type": "method",
+          "path": "library_system/services/catalog.py",
+          "start_line": 24,
+          "end_line": 27,
+          "anchor_text": "def get_book(self, isbn):",
+          "relevance": "primary",
+          "evidence": []
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "FR-005.1",
+          "text": "The book for a given ISBN is returned.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/catalog.py",
+              "start_line": 27,
+              "end_line": 27
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-005.2",
+          "text": "An error stating that no book exists is raised for an unknown ISBN.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/catalog.py",
+              "start_line": 25,
+              "end_line": 26
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "requirement_id": "FR-006",
+      "title": "Search the catalog",
+      "text": "The system shall return all books whose title or author contains a given keyword, ignoring letter case.",
+      "type": "functional",
+      "status": "implemented",
+      "links": [
+        {
+          "component_id": "library_system.services.catalog.Catalog.search",
+          "component_type": "method",
+          "path": "library_system/services/catalog.py",
+          "start_line": 29,
+          "end_line": 35,
+          "anchor_text": "def search(self, keyword):",
+          "relevance": "primary",
+          "evidence": []
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "FR-006.1",
+          "text": "Books whose title or author contains the keyword are returned.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/catalog.py",
+              "start_line": 31,
+              "end_line": 35
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-006.2",
+          "text": "The match ignores letter case.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/catalog.py",
+              "start_line": 30,
+              "end_line": 30
+            },
+            {
+              "path": "library_system/services/catalog.py",
+              "start_line": 34,
+              "end_line": 34
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "requirement_id": "FR-007",
+      "title": "List available books",
+      "text": "The system shall list the books that have at least one available copy, sorted alphabetically by title.",
+      "type": "functional",
+      "status": "implemented",
+      "links": [
+        {
+          "component_id": "library_system.services.catalog.Catalog.list_available",
+          "component_type": "method",
+          "path": "library_system/services/catalog.py",
+          "start_line": 37,
+          "end_line": 41,
+          "anchor_text": "def list_available(self):",
+          "relevance": "primary",
+          "evidence": []
+        },
+        {
+          "component_id": "library_system.models.book.Book.is_available",
+          "component_type": "method",
+          "path": "library_system/models/book.py",
+          "start_line": 19,
+          "end_line": 20,
+          "anchor_text": "def is_available(self):",
+          "relevance": "supporting",
+          "evidence": []
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "FR-007.1",
+          "text": "Only books with at least one available copy are listed.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/catalog.py",
+              "start_line": 39,
+              "end_line": 39
+            },
+            {
+              "path": "library_system/models/book.py",
+              "start_line": 20,
+              "end_line": 20
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-007.2",
+          "text": "The list is sorted alphabetically by title.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/catalog.py",
+              "start_line": 38,
+              "end_line": 38
+            },
+            {
+              "path": "library_system/services/catalog.py",
+              "start_line": 40,
+              "end_line": 40
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "requirement_id": "FR-032",
+      "title": "Search by publication year",
+      "text": "The system shall return all books whose publication year falls within a given range, inclusive of both bounds.",
+      "type": "functional",
+      "status": "not_implemented",
+      "links": [],
+      "claims": [
+        {
+          "claim_id": "FR-032.1",
+          "text": "Books whose publication year falls within a given inclusive range are returned.",
+          "verdict": "not_implemented",
+          "evidence": []
+        }
+      ],
+      "distractors": [
+        "library_system.services.catalog.Catalog.search",
+        "library_system.services.catalog.Catalog.list_available"
+      ],
+      "notes": "Catalog.search matches keywords against title and author only; nothing filters by year."
+    },
+    {
+      "requirement_id": "FR-036",
+      "title": "Search by ISBN",
+      "text": "Keyword search (FR-006) shall also match a book's ISBN, ignoring hyphens, in addition to its title and author.",
+      "type": "functional",
+      "status": "partial",
+      "links": [
+        {
+          "component_id": "library_system.services.catalog.Catalog.search",
+          "component_type": "method",
+          "path": "library_system/services/catalog.py",
+          "start_line": 29,
+          "end_line": 35,
+          "anchor_text": "def search(self, keyword):",
+          "relevance": "primary",
+          "evidence": []
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "FR-036.1",
+          "text": "Keyword search matches a book's title and author, ignoring case.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/catalog.py",
+              "start_line": 30,
+              "end_line": 30
+            },
+            {
+              "path": "library_system/services/catalog.py",
+              "start_line": 34,
+              "end_line": 34
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-036.2",
+          "text": "Keyword search also matches a book's ISBN, ignoring hyphens.",
+          "verdict": "not_supported",
+          "evidence": [
+            {
+              "path": "library_system/services/catalog.py",
+              "start_line": 34,
+              "end_line": 34
+            }
+          ]
+        }
+      ],
+      "notes": "Catalog.search compares the keyword with title and author only."
+    },
+    {
+      "requirement_id": "FR-008",
+      "title": "Track copy availability",
+      "text": "When a copy is checked out, the system shall decrease the book's available copies by one, and shall refuse the checkout when no copies are available. When a copy is returned, the system shall increase the available copies by one, and shall refuse the return when all copies are already in stock.",
+      "type": "functional",
+      "status": "implemented",
+      "links": [
+        {
+          "component_id": "library_system.models.book.Book.checkout_copy",
+          "component_type": "method",
+          "path": "library_system/models/book.py",
+          "start_line": 22,
+          "end_line": 25,
+          "anchor_text": "def checkout_copy(self):",
+          "relevance": "primary",
+          "evidence": []
+        },
+        {
+          "component_id": "library_system.models.book.Book.return_copy",
+          "component_type": "method",
+          "path": "library_system/models/book.py",
+          "start_line": 27,
+          "end_line": 30,
+          "anchor_text": "def return_copy(self):",
+          "relevance": "primary",
+          "evidence": []
+        },
+        {
+          "component_id": "library_system.services.lending.LendingService.checkout",
+          "component_type": "method",
+          "path": "library_system/services/lending.py",
+          "start_line": 21,
+          "end_line": 32,
+          "anchor_text": "def checkout(self, member_id, isbn, start_date=None):",
+          "relevance": "supporting",
+          "evidence": [
+            {
+              "kind": "block",
+              "path": "library_system/services/lending.py",
+              "start_line": 28,
+              "end_line": 28,
+              "anchor_text": "book.checkout_copy()"
+            }
+          ]
+        },
+        {
+          "component_id": "library_system.services.lending.LendingService.return_book",
+          "component_type": "method",
+          "path": "library_system/services/lending.py",
+          "start_line": 34,
+          "end_line": 44,
+          "anchor_text": "def return_book(self, loan_id, returned_on=None):",
+          "relevance": "supporting",
+          "evidence": [
+            {
+              "kind": "block",
+              "path": "library_system/services/lending.py",
+              "start_line": 39,
+              "end_line": 39,
+              "anchor_text": "loan.book.return_copy()"
+            }
+          ]
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "FR-008.1",
+          "text": "Checking out a copy decreases the available copies by one.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/models/book.py",
+              "start_line": 25,
+              "end_line": 25
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-008.2",
+          "text": "A checkout is refused when no copies are available.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/models/book.py",
+              "start_line": 23,
+              "end_line": 24
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-008.3",
+          "text": "Returning a copy increases the available copies by one.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/models/book.py",
+              "start_line": 30,
+              "end_line": 30
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-008.4",
+          "text": "A return is refused when all copies are already in stock.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/models/book.py",
+              "start_line": 28,
+              "end_line": 29
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "requirement_id": "FR-009",
+      "title": "Export a book record",
+      "text": "The system shall provide a dictionary representation of a book containing its ISBN, title, author, year, total copies and available copies.",
+      "type": "functional",
+      "status": "implemented",
+      "links": [
+        {
+          "component_id": "library_system.models.book.Book.to_dict",
+          "component_type": "method",
+          "path": "library_system/models/book.py",
+          "start_line": 32,
+          "end_line": 40,
+          "anchor_text": "def to_dict(self):",
+          "relevance": "primary",
+          "evidence": []
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "FR-009.1",
+          "text": "The dictionary contains ISBN, title, author, year, total copies and available copies.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/models/book.py",
+              "start_line": 33,
+              "end_line": 40
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "requirement_id": "FR-010",
+      "title": "Create a member",
+      "text": "The system shall create a member with a member ID, name, email address and membership type (default `standard`). The email address shall match the pattern `local-part@domain.tld`; otherwise the member shall be rejected. The membership type shall be one of the supported tiers (see FR-012); otherwise the member shall be rejected. A new member shall have no active loans and zero outstanding fines.",
+      "type": "functional",
+      "status": "implemented",
+      "links": [
+        {
+          "component_id": "library_system.models.member.Member.__init__",
+          "component_type": "method",
+          "path": "library_system/models/member.py",
+          "start_line": 13,
+          "end_line": 23,
+          "anchor_text": "def __init__(self, member_id, name, email, membership_type=\"standard\"):",
+          "relevance": "primary",
+          "evidence": [
+            {
+              "kind": "constant",
+              "symbol": "EMAIL_PATTERN",
+              "path": "library_system/models/member.py",
+              "start_line": 3,
+              "end_line": 3,
+              "anchor_text": "EMAIL_PATTERN = re.compile(r\"^[\\w.+-]+@[\\w-]+\\.[\\w.]+$\")"
+            },
+            {
+              "kind": "constant",
+              "symbol": "MEMBERSHIP_LIMITS",
+              "path": "library_system/models/member.py",
+              "start_line": 5,
+              "end_line": 9,
+              "anchor_text": "MEMBERSHIP_LIMITS = {"
+            }
+          ]
+        },
+        {
+          "component_id": "library_system.models.member.Member",
+          "component_type": "class",
+          "path": "library_system/models/member.py",
+          "start_line": 12,
+          "end_line": 44,
+          "anchor_text": "class Member:",
+          "relevance": "supporting",
+          "evidence": []
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "FR-010.1",
+          "text": "A member whose email does not match local-part@domain.tld is rejected.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/models/member.py",
+              "start_line": 14,
+              "end_line": 15
+            },
+            {
+              "path": "library_system/models/member.py",
+              "start_line": 3,
+              "end_line": 3
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-010.2",
+          "text": "A member whose membership type is not a supported tier is rejected.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/models/member.py",
+              "start_line": 16,
+              "end_line": 17
+            },
+            {
+              "path": "library_system/models/member.py",
+              "start_line": 5,
+              "end_line": 9
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-010.3",
+          "text": "The membership type defaults to standard.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/models/member.py",
+              "start_line": 13,
+              "end_line": 13
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-010.4",
+          "text": "A new member has no active loans and zero outstanding fines.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/models/member.py",
+              "start_line": 22,
+              "end_line": 23
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "requirement_id": "FR-011",
+      "title": "Register members",
+      "text": "The system shall register members with the lending service and shall reject a registration whose member ID is already registered.",
+      "type": "functional",
+      "status": "implemented",
+      "links": [
+        {
+          "component_id": "library_system.services.lending.LendingService.register_member",
+          "component_type": "method",
+          "path": "library_system/services/lending.py",
+          "start_line": 15,
+          "end_line": 19,
+          "anchor_text": "def register_member(self, member):",
+          "relevance": "primary",
+          "evidence": []
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "FR-011.1",
+          "text": "Members are registered with the lending service.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/lending.py",
+              "start_line": 18,
+              "end_line": 19
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-011.2",
+          "text": "A registration whose member ID is already registered is rejected.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/lending.py",
+              "start_line": 16,
+              "end_line": 17
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "requirement_id": "FR-012",
+      "title": "Borrowing limits",
+      "text": "The maximum number of simultaneous active loans shall depend on the membership type:\n\n| Membership type | Borrowing limit |\n|---|---|\n| standard | 3 |\n| premium | 7 |\n| staff | 10 |",
+      "type": "functional",
+      "status": "implemented",
+      "links": [
+        {
+          "component_id": "library_system.models.member.Member.borrow_limit",
+          "component_type": "method",
+          "path": "library_system/models/member.py",
+          "start_line": 25,
+          "end_line": 26,
+          "anchor_text": "def borrow_limit(self):",
+          "relevance": "primary",
+          "evidence": [
+            {
+              "kind": "constant",
+              "symbol": "MEMBERSHIP_LIMITS",
+              "path": "library_system/models/member.py",
+              "start_line": 5,
+              "end_line": 9,
+              "anchor_text": "MEMBERSHIP_LIMITS = {"
+            }
+          ]
+        },
+        {
+          "component_id": "library_system.models.member.Member.can_borrow",
+          "component_type": "method",
+          "path": "library_system/models/member.py",
+          "start_line": 28,
+          "end_line": 31,
+          "anchor_text": "def can_borrow(self):",
+          "relevance": "supporting",
+          "evidence": [
+            {
+              "kind": "block",
+              "path": "library_system/models/member.py",
+              "start_line": 31,
+              "end_line": 31,
+              "anchor_text": "return len(self.active_loans) < self.borrow_limit()"
+            }
+          ]
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "FR-012.1",
+          "text": "The borrowing limit for standard members is 3.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/models/member.py",
+              "start_line": 6,
+              "end_line": 6
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-012.2",
+          "text": "The borrowing limit for premium members is 7.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/models/member.py",
+              "start_line": 7,
+              "end_line": 7
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-012.3",
+          "text": "The borrowing limit for staff members is 10.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/models/member.py",
+              "start_line": 8,
+              "end_line": 8
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "requirement_id": "FR-013",
+      "title": "Borrowing eligibility",
+      "text": "A member shall be eligible to borrow only when they have no outstanding fines and their number of active loans is below their borrowing limit.",
+      "type": "functional",
+      "status": "implemented",
+      "links": [
+        {
+          "component_id": "library_system.models.member.Member.can_borrow",
+          "component_type": "method",
+          "path": "library_system/models/member.py",
+          "start_line": 28,
+          "end_line": 31,
+          "anchor_text": "def can_borrow(self):",
+          "relevance": "primary",
+          "evidence": []
+        },
+        {
+          "component_id": "library_system.models.member.Member.borrow_limit",
+          "component_type": "method",
+          "path": "library_system/models/member.py",
+          "start_line": 25,
+          "end_line": 26,
+          "anchor_text": "def borrow_limit(self):",
+          "relevance": "supporting",
+          "evidence": []
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "FR-013.1",
+          "text": "A member with outstanding fines is not eligible to borrow.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/models/member.py",
+              "start_line": 29,
+              "end_line": 30
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-013.2",
+          "text": "A member is eligible only while their active loans are below their borrowing limit.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/models/member.py",
+              "start_line": 31,
+              "end_line": 31
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "requirement_id": "FR-014",
+      "title": "Record fines",
+      "text": "The system shall add a fine amount to a member's outstanding fines, rounded to two decimals. Negative fine amounts shall be rejected.",
+      "type": "functional",
+      "status": "implemented",
+      "links": [
+        {
+          "component_id": "library_system.models.member.Member.add_fine",
+          "component_type": "method",
+          "path": "library_system/models/member.py",
+          "start_line": 33,
+          "end_line": 36,
+          "anchor_text": "def add_fine(self, amount):",
+          "relevance": "primary",
+          "evidence": []
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "FR-014.1",
+          "text": "A fine is added to the member's outstanding fines, rounded to two decimals.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/models/member.py",
+              "start_line": 36,
+              "end_line": 36
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-014.2",
+          "text": "Negative fine amounts are rejected.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/models/member.py",
+              "start_line": 34,
+              "end_line": 35
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "requirement_id": "FR-015",
+      "title": "Pay fines",
+      "text": "The system shall allow a member to pay part or all of their outstanding fines and shall return the remaining balance. The payment shall be rejected if it is zero or negative, or if it exceeds the outstanding balance.",
+      "type": "functional",
+      "status": "implemented",
+      "links": [
+        {
+          "component_id": "library_system.models.member.Member.pay_fine",
+          "component_type": "method",
+          "path": "library_system/models/member.py",
+          "start_line": 38,
+          "end_line": 44,
+          "anchor_text": "def pay_fine(self, amount):",
+          "relevance": "primary",
+          "evidence": []
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "FR-015.1",
+          "text": "A payment reduces the outstanding fines and the remaining balance is returned.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/models/member.py",
+              "start_line": 43,
+              "end_line": 44
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-015.2",
+          "text": "A zero or negative payment is rejected.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/models/member.py",
+              "start_line": 39,
+              "end_line": 40
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-015.3",
+          "text": "A payment exceeding the outstanding balance is rejected.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/models/member.py",
+              "start_line": 41,
+              "end_line": 42
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "requirement_id": "FR-033",
+      "title": "Deactivate a member",
+      "text": "The system shall allow a librarian to deactivate a member. A deactivated member shall not be eligible to borrow books.",
+      "type": "functional",
+      "status": "not_implemented",
+      "links": [],
+      "claims": [
+        {
+          "claim_id": "FR-033.1",
+          "text": "A librarian can deactivate a member.",
+          "verdict": "not_implemented",
+          "evidence": []
+        },
+        {
+          "claim_id": "FR-033.2",
+          "text": "A deactivated member cannot borrow books.",
+          "verdict": "not_implemented",
+          "evidence": []
+        }
+      ],
+      "distractors": [
+        "library_system.models.member.Member.can_borrow",
+        "library_system.services.lending.LendingService.register_member"
+      ],
+      "notes": "Members have no active/inactive state; can_borrow checks only fines and the loan limit."
+    },
+    {
+      "requirement_id": "FR-035",
+      "title": "Payment history",
+      "text": "When a member pays a fine, the system shall return the remaining balance and shall record the amount and date of each payment in the member's payment history.",
+      "type": "functional",
+      "status": "partial",
+      "links": [
+        {
+          "component_id": "library_system.models.member.Member.pay_fine",
+          "component_type": "method",
+          "path": "library_system/models/member.py",
+          "start_line": 38,
+          "end_line": 44,
+          "anchor_text": "def pay_fine(self, amount):",
+          "relevance": "primary",
+          "evidence": []
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "FR-035.1",
+          "text": "Paying a fine returns the remaining balance.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/models/member.py",
+              "start_line": 43,
+              "end_line": 44
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-035.2",
+          "text": "Each payment's amount and date is recorded in the member's payment history.",
+          "verdict": "not_implemented",
+          "evidence": []
+        }
+      ],
+      "notes": "pay_fine updates the balance only; no payment history exists anywhere."
+    },
+    {
+      "requirement_id": "FR-016",
+      "title": "Check out a book",
+      "text": "The system shall check out a book (by ISBN) to a registered member (by member ID). The checkout shall be refused if the member is not eligible to borrow (FR-013). On success the system shall reduce the book's available copies, create a loan with a unique, sequentially assigned loan ID starting at 1, attach the loan to the member's active loans and record it in the lending service. The loan start date shall default to today's date if not supplied.",
+      "type": "functional",
+      "status": "implemented",
+      "links": [
+        {
+          "component_id": "library_system.services.lending.LendingService.checkout",
+          "component_type": "method",
+          "path": "library_system/services/lending.py",
+          "start_line": 21,
+          "end_line": 32,
+          "anchor_text": "def checkout(self, member_id, isbn, start_date=None):",
+          "relevance": "primary",
+          "evidence": []
+        },
+        {
+          "component_id": "library_system.services.lending.LendingService.__init__",
+          "component_type": "method",
+          "path": "library_system/services/lending.py",
+          "start_line": 9,
+          "end_line": 13,
+          "anchor_text": "def __init__(self, catalog):",
+          "relevance": "supporting",
+          "evidence": [
+            {
+              "kind": "block",
+              "path": "library_system/services/lending.py",
+              "start_line": 13,
+              "end_line": 13,
+              "anchor_text": "self._loan_ids = count(1)"
+            }
+          ]
+        },
+        {
+          "component_id": "library_system.models.loan.Loan.__init__",
+          "component_type": "method",
+          "path": "library_system/models/loan.py",
+          "start_line": 8,
+          "end_line": 15,
+          "anchor_text": "def __init__(self, loan_id, book, member, start_date=None):",
+          "relevance": "supporting",
+          "evidence": [
+            {
+              "kind": "block",
+              "path": "library_system/models/loan.py",
+              "start_line": 12,
+              "end_line": 12,
+              "anchor_text": "self.start_date = start_date or date.today()"
+            }
+          ]
+        },
+        {
+          "component_id": "library_system.models.member.Member.can_borrow",
+          "component_type": "method",
+          "path": "library_system/models/member.py",
+          "start_line": 28,
+          "end_line": 31,
+          "anchor_text": "def can_borrow(self):",
+          "relevance": "supporting",
+          "evidence": []
+        },
+        {
+          "component_id": "library_system.services.lending.LendingService",
+          "component_type": "class",
+          "path": "library_system/services/lending.py",
+          "start_line": 8,
+          "end_line": 51,
+          "anchor_text": "class LendingService:",
+          "relevance": "supporting",
+          "evidence": []
+        },
+        {
+          "component_id": "library_system.models.loan.Loan",
+          "component_type": "class",
+          "path": "library_system/models/loan.py",
+          "start_line": 7,
+          "end_line": 37,
+          "anchor_text": "class Loan:",
+          "relevance": "supporting",
+          "evidence": []
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "FR-016.1",
+          "text": "The checkout is refused if the member is not eligible to borrow.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/lending.py",
+              "start_line": 24,
+              "end_line": 25
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-016.2",
+          "text": "A successful checkout reduces the book's available copies.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/lending.py",
+              "start_line": 28,
+              "end_line": 28
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-016.3",
+          "text": "Loan IDs are unique and assigned sequentially starting at 1.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/lending.py",
+              "start_line": 29,
+              "end_line": 29
+            },
+            {
+              "path": "library_system/services/lending.py",
+              "start_line": 13,
+              "end_line": 13
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-016.4",
+          "text": "The loan is attached to the member's active loans.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/lending.py",
+              "start_line": 30,
+              "end_line": 30
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-016.5",
+          "text": "The loan is recorded in the lending service.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/lending.py",
+              "start_line": 31,
+              "end_line": 31
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-016.6",
+          "text": "The loan start date defaults to today.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/models/loan.py",
+              "start_line": 12,
+              "end_line": 12
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "requirement_id": "FR-017",
+      "title": "Loan period",
+      "text": "The due date of a new loan shall be 14 days after its start date.",
+      "type": "functional",
+      "status": "implemented",
+      "links": [
+        {
+          "component_id": "library_system.models.loan.Loan.__init__",
+          "component_type": "method",
+          "path": "library_system/models/loan.py",
+          "start_line": 8,
+          "end_line": 15,
+          "anchor_text": "def __init__(self, loan_id, book, member, start_date=None):",
+          "relevance": "primary",
+          "evidence": [
+            {
+              "kind": "block",
+              "path": "library_system/models/loan.py",
+              "start_line": 13,
+              "end_line": 13,
+              "anchor_text": "self.due_date = self.start_date + timedelta(days=LOAN_PERIOD_DAYS)"
+            },
+            {
+              "kind": "constant",
+              "symbol": "LOAN_PERIOD_DAYS",
+              "path": "library_system/models/loan.py",
+              "start_line": 3,
+              "end_line": 3,
+              "anchor_text": "LOAN_PERIOD_DAYS = 14"
+            }
+          ]
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "FR-017.1",
+          "text": "The due date of a new loan is 14 days after its start date.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/models/loan.py",
+              "start_line": 13,
+              "end_line": 13
+            },
+            {
+              "path": "library_system/models/loan.py",
+              "start_line": 3,
+              "end_line": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "requirement_id": "FR-018",
+      "title": "One copy per title per member",
+      "text": "The system shall refuse a checkout when the member already has an active loan for the same ISBN.",
+      "type": "functional",
+      "status": "implemented",
+      "links": [
+        {
+          "component_id": "library_system.services.lending.LendingService.checkout",
+          "component_type": "method",
+          "path": "library_system/services/lending.py",
+          "start_line": 21,
+          "end_line": 32,
+          "anchor_text": "def checkout(self, member_id, isbn, start_date=None):",
+          "relevance": "primary",
+          "evidence": [
+            {
+              "kind": "block",
+              "path": "library_system/services/lending.py",
+              "start_line": 26,
+              "end_line": 27,
+              "anchor_text": "if any(loan.book.isbn == isbn for loan in member.active_loans):"
+            }
+          ]
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "FR-018.1",
+          "text": "A checkout is refused when the member already has an active loan for the same ISBN.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/lending.py",
+              "start_line": 26,
+              "end_line": 27
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "requirement_id": "FR-019",
+      "title": "Return a book",
+      "text": "The system shall record the return of a loan by loan ID, with the return date defaulting to today. The system shall refuse to return a loan that was already returned. On return the system shall mark the loan as returned, increase the book's available copies and remove the loan from the member's active loans.",
+      "type": "functional",
+      "status": "implemented",
+      "links": [
+        {
+          "component_id": "library_system.services.lending.LendingService.return_book",
+          "component_type": "method",
+          "path": "library_system/services/lending.py",
+          "start_line": 34,
+          "end_line": 44,
+          "anchor_text": "def return_book(self, loan_id, returned_on=None):",
+          "relevance": "primary",
+          "evidence": [
+            {
+              "kind": "block",
+              "path": "library_system/services/lending.py",
+              "start_line": 35,
+              "end_line": 40,
+              "anchor_text": "loan = self.loans[loan_id]"
+            }
+          ]
+        },
+        {
+          "component_id": "library_system.models.loan.Loan.close",
+          "component_type": "method",
+          "path": "library_system/models/loan.py",
+          "start_line": 36,
+          "end_line": 37,
+          "anchor_text": "def close(self, returned_on=None):",
+          "relevance": "supporting",
+          "evidence": []
+        },
+        {
+          "component_id": "library_system.models.loan.Loan.is_returned",
+          "component_type": "method",
+          "path": "library_system/models/loan.py",
+          "start_line": 17,
+          "end_line": 18,
+          "anchor_text": "def is_returned(self):",
+          "relevance": "supporting",
+          "evidence": []
+        },
+        {
+          "component_id": "library_system.models.book.Book.return_copy",
+          "component_type": "method",
+          "path": "library_system/models/book.py",
+          "start_line": 27,
+          "end_line": 30,
+          "anchor_text": "def return_copy(self):",
+          "relevance": "supporting",
+          "evidence": []
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "FR-019.1",
+          "text": "A return is recorded by loan ID with the return date defaulting to today.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/lending.py",
+              "start_line": 35,
+              "end_line": 35
+            },
+            {
+              "path": "library_system/services/lending.py",
+              "start_line": 38,
+              "end_line": 38
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-019.2",
+          "text": "Returning a loan that was already returned is refused.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/lending.py",
+              "start_line": 36,
+              "end_line": 37
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-019.3",
+          "text": "The loan is marked as returned.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/lending.py",
+              "start_line": 38,
+              "end_line": 38
+            },
+            {
+              "path": "library_system/models/loan.py",
+              "start_line": 37,
+              "end_line": 37
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-019.4",
+          "text": "The book's available copies increase.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/lending.py",
+              "start_line": 39,
+              "end_line": 39
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-019.5",
+          "text": "The loan is removed from the member's active loans.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/lending.py",
+              "start_line": 40,
+              "end_line": 40
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "requirement_id": "FR-020",
+      "title": "Renew a loan",
+      "text": "The system shall allow a loan to be renewed, extending the due date by another 14-day loan period, and shall return the new due date. A loan shall be renewed at most 2 times. Renewal shall be refused if the loan has been returned or is currently overdue.",
+      "type": "functional",
+      "status": "implemented",
+      "links": [
+        {
+          "component_id": "library_system.models.loan.Loan.renew",
+          "component_type": "method",
+          "path": "library_system/models/loan.py",
+          "start_line": 25,
+          "end_line": 34,
+          "anchor_text": "def renew(self):",
+          "relevance": "primary",
+          "evidence": [
+            {
+              "kind": "constant",
+              "symbol": "MAX_RENEWALS",
+              "path": "library_system/models/loan.py",
+              "start_line": 4,
+              "end_line": 4,
+              "anchor_text": "MAX_RENEWALS = 2"
+            },
+            {
+              "kind": "constant",
+              "symbol": "LOAN_PERIOD_DAYS",
+              "path": "library_system/models/loan.py",
+              "start_line": 3,
+              "end_line": 3,
+              "anchor_text": "LOAN_PERIOD_DAYS = 14"
+            }
+          ]
+        },
+        {
+          "component_id": "library_system.models.loan.Loan.is_returned",
+          "component_type": "method",
+          "path": "library_system/models/loan.py",
+          "start_line": 17,
+          "end_line": 18,
+          "anchor_text": "def is_returned(self):",
+          "relevance": "supporting",
+          "evidence": []
+        },
+        {
+          "component_id": "library_system.models.loan.Loan.days_overdue",
+          "component_type": "method",
+          "path": "library_system/models/loan.py",
+          "start_line": 20,
+          "end_line": 23,
+          "anchor_text": "def days_overdue(self, as_of=None):",
+          "relevance": "supporting",
+          "evidence": []
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "FR-020.1",
+          "text": "Renewal extends the due date by another 14-day loan period and returns the new due date.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/models/loan.py",
+              "start_line": 32,
+              "end_line": 34
+            },
+            {
+              "path": "library_system/models/loan.py",
+              "start_line": 3,
+              "end_line": 3
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-020.2",
+          "text": "A loan is renewed at most 2 times.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/models/loan.py",
+              "start_line": 28,
+              "end_line": 29
+            },
+            {
+              "path": "library_system/models/loan.py",
+              "start_line": 4,
+              "end_line": 4
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-020.3",
+          "text": "Renewal is refused if the loan has been returned.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/models/loan.py",
+              "start_line": 26,
+              "end_line": 27
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-020.4",
+          "text": "Renewal is refused if the loan is currently overdue.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/models/loan.py",
+              "start_line": 30,
+              "end_line": 31
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "requirement_id": "FR-021",
+      "title": "Overdue detection",
+      "text": "The system shall compute the number of days a loan is overdue, using the return date if the loan has been returned, otherwise a supplied check date, otherwise today. The value shall never be negative. The system shall list all loans that are not yet returned and are overdue as of a given date.",
+      "type": "functional",
+      "status": "implemented",
+      "links": [
+        {
+          "component_id": "library_system.models.loan.Loan.days_overdue",
+          "component_type": "method",
+          "path": "library_system/models/loan.py",
+          "start_line": 20,
+          "end_line": 23,
+          "anchor_text": "def days_overdue(self, as_of=None):",
+          "relevance": "primary",
+          "evidence": []
+        },
+        {
+          "component_id": "library_system.services.lending.LendingService.overdue_loans",
+          "component_type": "method",
+          "path": "library_system/services/lending.py",
+          "start_line": 46,
+          "end_line": 51,
+          "anchor_text": "def overdue_loans(self, as_of=None):",
+          "relevance": "primary",
+          "evidence": []
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "FR-021.1",
+          "text": "Days overdue use the return date, else a supplied check date, else today.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/models/loan.py",
+              "start_line": 21,
+              "end_line": 21
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-021.2",
+          "text": "Days overdue are never negative.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/models/loan.py",
+              "start_line": 23,
+              "end_line": 23
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-021.3",
+          "text": "All loans not yet returned and overdue as of a given date can be listed.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/lending.py",
+              "start_line": 47,
+              "end_line": 51
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "requirement_id": "FR-031",
+      "title": "Due-date reminders",
+      "text": "The system shall send an email reminder to a member 2 days before each of their loans is due.",
+      "type": "functional",
+      "status": "not_implemented",
+      "links": [],
+      "claims": [
+        {
+          "claim_id": "FR-031.1",
+          "text": "An email reminder is sent to the member 2 days before a loan's due date.",
+          "verdict": "not_implemented",
+          "evidence": []
+        }
+      ],
+      "distractors": [
+        "library_system.models.loan.Loan.__init__",
+        "library_system.services.lending.LendingService.overdue_loans"
+      ],
+      "notes": "No code sends email or schedules reminders; due dates exist only on Loan."
+    },
+    {
+      "requirement_id": "FR-034",
+      "title": "Renewal eligibility",
+      "text": "A loan shall be renewed only when it has been renewed fewer than 2 times and the borrowing member has no outstanding fines.",
+      "type": "functional",
+      "status": "partial",
+      "links": [
+        {
+          "component_id": "library_system.models.loan.Loan.renew",
+          "component_type": "method",
+          "path": "library_system/models/loan.py",
+          "start_line": 25,
+          "end_line": 34,
+          "anchor_text": "def renew(self):",
+          "relevance": "primary",
+          "evidence": [
+            {
+              "kind": "block",
+              "path": "library_system/models/loan.py",
+              "start_line": 26,
+              "end_line": 31,
+              "anchor_text": "if self.is_returned():"
+            },
+            {
+              "kind": "constant",
+              "symbol": "MAX_RENEWALS",
+              "path": "library_system/models/loan.py",
+              "start_line": 4,
+              "end_line": 4,
+              "anchor_text": "MAX_RENEWALS = 2"
+            }
+          ]
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "FR-034.1",
+          "text": "A loan that has already been renewed 2 times cannot be renewed.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/models/loan.py",
+              "start_line": 28,
+              "end_line": 29
+            },
+            {
+              "path": "library_system/models/loan.py",
+              "start_line": 4,
+              "end_line": 4
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-034.2",
+          "text": "A loan cannot be renewed while the borrowing member has outstanding fines.",
+          "verdict": "not_supported",
+          "evidence": [
+            {
+              "path": "library_system/models/loan.py",
+              "start_line": 26,
+              "end_line": 31
+            }
+          ]
+        }
+      ],
+      "notes": "Loan.renew checks returned, renewal count and overdue, but never the member's outstanding fines."
+    },
+    {
+      "requirement_id": "FR-022",
+      "title": "Fine calculation",
+      "text": "The fine for a loan shall be calculated as follows:\n- If the loan is overdue by 2 days or fewer (grace period), the fine is 0.00.\n- Otherwise the fine is the number of overdue days multiplied by 0.50 per day.\n- The fine for a single loan shall not exceed 20.00.\n- The result shall be rounded to two decimals.",
+      "type": "functional",
+      "status": "implemented",
+      "links": [
+        {
+          "component_id": "library_system.services.fines.calculate_fine",
+          "component_type": "function",
+          "path": "library_system/services/fines.py",
+          "start_line": 6,
+          "end_line": 11,
+          "anchor_text": "def calculate_fine(loan, as_of=None):",
+          "relevance": "primary",
+          "evidence": [
+            {
+              "kind": "constant",
+              "symbol": "DAILY_FINE_RATE",
+              "path": "library_system/services/fines.py",
+              "start_line": 1,
+              "end_line": 1,
+              "anchor_text": "DAILY_FINE_RATE = 0.50"
+            },
+            {
+              "kind": "constant",
+              "symbol": "MAX_FINE_PER_LOAN",
+              "path": "library_system/services/fines.py",
+              "start_line": 2,
+              "end_line": 2,
+              "anchor_text": "MAX_FINE_PER_LOAN = 20.00"
+            },
+            {
+              "kind": "constant",
+              "symbol": "GRACE_PERIOD_DAYS",
+              "path": "library_system/services/fines.py",
+              "start_line": 3,
+              "end_line": 3,
+              "anchor_text": "GRACE_PERIOD_DAYS = 2"
+            }
+          ]
+        },
+        {
+          "component_id": "library_system.models.loan.Loan.days_overdue",
+          "component_type": "method",
+          "path": "library_system/models/loan.py",
+          "start_line": 20,
+          "end_line": 23,
+          "anchor_text": "def days_overdue(self, as_of=None):",
+          "relevance": "supporting",
+          "evidence": []
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "FR-022.1",
+          "text": "A loan overdue by 2 days or fewer has a fine of 0.00.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/fines.py",
+              "start_line": 8,
+              "end_line": 9
+            },
+            {
+              "path": "library_system/services/fines.py",
+              "start_line": 3,
+              "end_line": 3
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-022.2",
+          "text": "Otherwise the fine is the overdue days multiplied by 0.50.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/fines.py",
+              "start_line": 10,
+              "end_line": 10
+            },
+            {
+              "path": "library_system/services/fines.py",
+              "start_line": 1,
+              "end_line": 1
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-022.3",
+          "text": "The fine for a single loan does not exceed 20.00.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/fines.py",
+              "start_line": 11,
+              "end_line": 11
+            },
+            {
+              "path": "library_system/services/fines.py",
+              "start_line": 2,
+              "end_line": 2
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-022.4",
+          "text": "The fine is rounded to two decimals.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/fines.py",
+              "start_line": 11,
+              "end_line": 11
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "requirement_id": "FR-023",
+      "title": "Charge fine on return",
+      "text": "When a book is returned, the system shall calculate the fine for that loan and, if it is greater than zero, add it to the member's outstanding fines. The return operation shall report the fine charged.",
+      "type": "functional",
+      "status": "implemented",
+      "links": [
+        {
+          "component_id": "library_system.services.lending.LendingService.return_book",
+          "component_type": "method",
+          "path": "library_system/services/lending.py",
+          "start_line": 34,
+          "end_line": 44,
+          "anchor_text": "def return_book(self, loan_id, returned_on=None):",
+          "relevance": "primary",
+          "evidence": [
+            {
+              "kind": "block",
+              "path": "library_system/services/lending.py",
+              "start_line": 41,
+              "end_line": 41,
+              "anchor_text": "fine = calculate_fine(loan)"
+            },
+            {
+              "kind": "block",
+              "path": "library_system/services/lending.py",
+              "start_line": 42,
+              "end_line": 43,
+              "anchor_text": "if fine > 0:"
+            },
+            {
+              "kind": "block",
+              "path": "library_system/services/lending.py",
+              "start_line": 44,
+              "end_line": 44,
+              "anchor_text": "return fine"
+            }
+          ]
+        },
+        {
+          "component_id": "library_system.services.fines.calculate_fine",
+          "component_type": "function",
+          "path": "library_system/services/fines.py",
+          "start_line": 6,
+          "end_line": 11,
+          "anchor_text": "def calculate_fine(loan, as_of=None):",
+          "relevance": "supporting",
+          "evidence": []
+        },
+        {
+          "component_id": "library_system.models.member.Member.add_fine",
+          "component_type": "method",
+          "path": "library_system/models/member.py",
+          "start_line": 33,
+          "end_line": 36,
+          "anchor_text": "def add_fine(self, amount):",
+          "relevance": "supporting",
+          "evidence": []
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "FR-023.1",
+          "text": "The fine for the loan is calculated when the book is returned.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/lending.py",
+              "start_line": 41,
+              "end_line": 41
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-023.2",
+          "text": "A fine greater than zero is added to the member's outstanding fines.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/lending.py",
+              "start_line": 42,
+              "end_line": 43
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-023.3",
+          "text": "The return operation reports the fine charged.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/lending.py",
+              "start_line": 44,
+              "end_line": 44
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "requirement_id": "FR-024",
+      "title": "Total outstanding fines",
+      "text": "The system shall compute the total of outstanding fines across a set of members, rounded to two decimals.",
+      "type": "functional",
+      "status": "implemented",
+      "links": [
+        {
+          "component_id": "library_system.services.fines.total_outstanding",
+          "component_type": "function",
+          "path": "library_system/services/fines.py",
+          "start_line": 14,
+          "end_line": 15,
+          "anchor_text": "def total_outstanding(members):",
+          "relevance": "primary",
+          "evidence": []
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "FR-024.1",
+          "text": "The total of outstanding fines across a set of members is computed, rounded to two decimals.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/fines.py",
+              "start_line": 15,
+              "end_line": 15
+            }
+          ]
+        }
+      ],
+      "distractors": [
+        "library_system.services.reports.member_report.fines_summary"
+      ]
+    },
+    {
+      "requirement_id": "FR-025",
+      "title": "Inventory summary",
+      "text": "The system shall report the number of titles, the total number of copies, the number of available copies and the number of copies on loan.",
+      "type": "functional",
+      "status": "implemented",
+      "links": [
+        {
+          "component_id": "library_system.services.reports.inventory_report.inventory_summary",
+          "component_type": "function",
+          "path": "library_system/services/reports/inventory_report.py",
+          "start_line": 4,
+          "end_line": 13,
+          "anchor_text": "def inventory_summary(catalog):",
+          "relevance": "primary",
+          "evidence": []
+        },
+        {
+          "component_id": "library_system.services.catalog.Catalog.all_books",
+          "component_type": "method",
+          "path": "library_system/services/catalog.py",
+          "start_line": 43,
+          "end_line": 44,
+          "anchor_text": "def all_books(self):",
+          "relevance": "supporting",
+          "evidence": []
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "FR-025.1",
+          "text": "The report gives the number of titles, total copies and available copies.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/reports/inventory_report.py",
+              "start_line": 6,
+              "end_line": 11
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-025.2",
+          "text": "The report gives the number of copies on loan.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/reports/inventory_report.py",
+              "start_line": 12,
+              "end_line": 12
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "requirement_id": "FR-026",
+      "title": "Titles per author",
+      "text": "The system shall report the number of titles per author, ordered by count descending and then by author name ascending.",
+      "type": "functional",
+      "status": "implemented",
+      "links": [
+        {
+          "component_id": "library_system.services.reports.inventory_report.books_by_author",
+          "component_type": "function",
+          "path": "library_system/services/reports/inventory_report.py",
+          "start_line": 16,
+          "end_line": 18,
+          "anchor_text": "def books_by_author(catalog):",
+          "relevance": "primary",
+          "evidence": []
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "FR-026.1",
+          "text": "The report gives the number of titles per author.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/reports/inventory_report.py",
+              "start_line": 17,
+              "end_line": 17
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-026.2",
+          "text": "Authors are ordered by count descending, then by name ascending.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/reports/inventory_report.py",
+              "start_line": 18,
+              "end_line": 18
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "requirement_id": "FR-027",
+      "title": "Member activity",
+      "text": "The system shall report, for each registered member, the member ID, name, number of active loans, borrowing limit and outstanding fines, ordered by member ID.",
+      "type": "functional",
+      "status": "implemented",
+      "links": [
+        {
+          "component_id": "library_system.services.reports.member_report.member_activity",
+          "component_type": "function",
+          "path": "library_system/services/reports/member_report.py",
+          "start_line": 4,
+          "end_line": 16,
+          "anchor_text": "def member_activity(lending_service):",
+          "relevance": "primary",
+          "evidence": []
+        },
+        {
+          "component_id": "library_system.models.member.Member.borrow_limit",
+          "component_type": "method",
+          "path": "library_system/models/member.py",
+          "start_line": 25,
+          "end_line": 26,
+          "anchor_text": "def borrow_limit(self):",
+          "relevance": "supporting",
+          "evidence": []
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "FR-027.1",
+          "text": "Each member's ID, name, active loans, borrowing limit and outstanding fines are reported.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/reports/member_report.py",
+              "start_line": 6,
+              "end_line": 15
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-027.2",
+          "text": "Rows are ordered by member ID.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/reports/member_report.py",
+              "start_line": 16,
+              "end_line": 16
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "requirement_id": "FR-028",
+      "title": "Overdue loans report",
+      "text": "The system shall report, for each overdue loan as of a given date, the loan ID, member ID, ISBN, days overdue and the projected fine if returned on that date.",
+      "type": "functional",
+      "status": "implemented",
+      "links": [
+        {
+          "component_id": "library_system.services.reports.member_report.overdue_report",
+          "component_type": "function",
+          "path": "library_system/services/reports/member_report.py",
+          "start_line": 19,
+          "end_line": 31,
+          "anchor_text": "def overdue_report(lending_service, as_of=None):",
+          "relevance": "primary",
+          "evidence": []
+        },
+        {
+          "component_id": "library_system.services.lending.LendingService.overdue_loans",
+          "component_type": "method",
+          "path": "library_system/services/lending.py",
+          "start_line": 46,
+          "end_line": 51,
+          "anchor_text": "def overdue_loans(self, as_of=None):",
+          "relevance": "supporting",
+          "evidence": []
+        },
+        {
+          "component_id": "library_system.services.fines.calculate_fine",
+          "component_type": "function",
+          "path": "library_system/services/fines.py",
+          "start_line": 6,
+          "end_line": 11,
+          "anchor_text": "def calculate_fine(loan, as_of=None):",
+          "relevance": "supporting",
+          "evidence": []
+        },
+        {
+          "component_id": "library_system.models.loan.Loan.days_overdue",
+          "component_type": "method",
+          "path": "library_system/models/loan.py",
+          "start_line": 20,
+          "end_line": 23,
+          "anchor_text": "def days_overdue(self, as_of=None):",
+          "relevance": "supporting",
+          "evidence": []
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "FR-028.1",
+          "text": "Each overdue loan's loan ID, member ID, ISBN and days overdue are reported.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/reports/member_report.py",
+              "start_line": 21,
+              "end_line": 27
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-028.2",
+          "text": "The projected fine if returned on the given date is reported.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/reports/member_report.py",
+              "start_line": 28,
+              "end_line": 28
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "requirement_id": "FR-029",
+      "title": "Fines summary",
+      "text": "The system shall report the total outstanding fines across all registered members and the number of members with outstanding fines greater than zero.",
+      "type": "functional",
+      "status": "implemented",
+      "links": [
+        {
+          "component_id": "library_system.services.reports.member_report.fines_summary",
+          "component_type": "function",
+          "path": "library_system/services/reports/member_report.py",
+          "start_line": 34,
+          "end_line": 40,
+          "anchor_text": "def fines_summary(lending_service):",
+          "relevance": "primary",
+          "evidence": []
+        },
+        {
+          "component_id": "library_system.services.fines.total_outstanding",
+          "component_type": "function",
+          "path": "library_system/services/fines.py",
+          "start_line": 14,
+          "end_line": 15,
+          "anchor_text": "def total_outstanding(members):",
+          "relevance": "supporting",
+          "evidence": []
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "FR-029.1",
+          "text": "The total outstanding fines across all registered members are reported.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/reports/member_report.py",
+              "start_line": 36,
+              "end_line": 36
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-029.2",
+          "text": "The number of members with outstanding fines greater than zero is reported.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/services/reports/member_report.py",
+              "start_line": 37,
+              "end_line": 39
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "requirement_id": "FR-030",
+      "title": "Demonstration scenario",
+      "text": "The system shall provide a runnable demonstration that:\n1. builds a sample catalog of three books and registers two members (one standard, one premium);\n2. creates one checkout dated 20 days in the past and one current checkout;\n3. prints the inventory summary and overdue report;\n4. returns the late loan and prints the fine charged;\n5. prints the fines summary.",
+      "type": "functional",
+      "status": "implemented",
+      "links": [
+        {
+          "component_id": "library_system.main.build_demo_library",
+          "component_type": "function",
+          "path": "library_system/main.py",
+          "start_line": 10,
+          "end_line": 18,
+          "anchor_text": "def build_demo_library():",
+          "relevance": "primary",
+          "evidence": []
+        },
+        {
+          "component_id": "library_system.main.run_demo",
+          "component_type": "function",
+          "path": "library_system/main.py",
+          "start_line": 21,
+          "end_line": 30,
+          "anchor_text": "def run_demo():",
+          "relevance": "primary",
+          "evidence": []
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "FR-030.1",
+          "text": "The demo builds a catalog of three books and registers one standard and one premium member.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/main.py",
+              "start_line": 11,
+              "end_line": 17
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-030.2",
+          "text": "The demo creates one checkout dated 20 days in the past and one current checkout.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/main.py",
+              "start_line": 23,
+              "end_line": 25
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-030.3",
+          "text": "The demo prints the inventory summary and the overdue report.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/main.py",
+              "start_line": 26,
+              "end_line": 27
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-030.4",
+          "text": "The demo returns the late loan and prints the fine charged.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/main.py",
+              "start_line": 28,
+              "end_line": 29
+            }
+          ]
+        },
+        {
+          "claim_id": "FR-030.5",
+          "text": "The demo prints the fines summary.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "path": "library_system/main.py",
+              "start_line": 30,
+              "end_line": 30
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "requirement_id": "NFR-001",
+      "title": "Portability",
+      "text": "The system shall run on Python 3.8 or later and shall use only the Python standard library.",
+      "type": "non-functional",
+      "status": "cross_cutting",
+      "links": [],
+      "claims": []
+    },
+    {
+      "requirement_id": "NFR-002",
+      "title": "Storage",
+      "text": "The system shall keep all data in memory and shall not require a database or files.",
+      "type": "non-functional",
+      "status": "cross_cutting",
+      "links": [],
+      "claims": []
+    },
+    {
+      "requirement_id": "NFR-003",
+      "title": "Error reporting",
+      "text": "Every rejected operation shall raise an exception with a human-readable message describing the cause.",
+      "type": "non-functional",
+      "status": "cross_cutting",
+      "links": [],
+      "claims": [],
+      "notes": "Mostly met, but an unknown member ID (LendingService.checkout) or loan ID (LendingService.return_book) raises a bare KeyError whose message is only the ID."
+    }
+  ]
+}

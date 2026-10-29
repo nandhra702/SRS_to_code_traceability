@@ -67,3 +67,21 @@ def test_build_vector_indexes(run, real_srs, capsys):
 def test_unknown_command_rejected():
     with pytest.raises(SystemExit):
         cli.main(["frobnicate"])
+
+
+def test_search_human_and_json_output(run, real_v1_graph, capsys):
+    run("ingest-graph", str(real_v1_graph), "--repo-id", "simple", "--no-embed")
+    capsys.readouterr()
+    assert run("search", "process data", "--repo-id", "simple", "--method", "lexical",
+               "--entities", "component", "--top-k", "3") == 0
+    out = capsys.readouterr().out
+    assert "mode=keyword" in out and "== component ==" in out and "lexical #1" in out
+    assert run("search", "process data", "--repo-id", "simple", "--method", "lexical",
+               "--entities", "component", "--json") == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["query"]["mode"] == "keyword" and data["results"]["component"]
+
+
+def test_search_unknown_repo_exits_2(run, real_srs):
+    run("ingest-requirements", str(real_srs), "--no-embed")
+    assert run("search", "anything", "--repo-id", "nope", "--method", "lexical") == 2

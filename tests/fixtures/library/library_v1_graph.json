@@ -1,0 +1,1581 @@
+{
+  "components": {
+    "library_system.main.build_demo_library": {
+      "id": "library_system.main.build_demo_library",
+      "component_type": "function",
+      "file_path": "<repo>/library_system/main.py",
+      "relative_path": "library_system\\main.py",
+      "depends_on": [
+        "library_system.services.lending.LendingService",
+        "library_system.models.member.Member",
+        "library_system.services.catalog.Catalog"
+      ],
+      "source_code": "def build_demo_library():\n    catalog = Catalog()\n    catalog.add_book(\"978-0132350884\", \"Clean Code\", \"Robert C. Martin\", 2008, copies=2)\n    catalog.add_book(\"978-0201633610\", \"Design Patterns\", \"Erich Gamma\", 1994)\n    catalog.add_book(\"978-0134685991\", \"Effective Java\", \"Joshua Bloch\", 2018, copies=3)\n    lending = LendingService(catalog)\n    lending.register_member(Member(\"M001\", \"Asha Rao\", \"asha@example.com\"))\n    lending.register_member(Member(\"M002\", \"Ben Ortiz\", \"ben@example.com\", \"premium\"))\n    return catalog, lending",
+      "start_line": 10,
+      "end_line": 18,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": "build_demo_library()",
+      "parameters": [],
+      "return_type": null,
+      "containing_class": null,
+      "relationships": [
+        {
+          "source": "library_system.main.build_demo_library",
+          "target": "library_system.models.member.Member",
+          "type": "imports"
+        },
+        {
+          "source": "library_system.main.build_demo_library",
+          "target": "library_system.services.catalog.Catalog",
+          "type": "imports"
+        },
+        {
+          "source": "library_system.main.build_demo_library",
+          "target": "library_system.services.lending.LendingService",
+          "type": "imports"
+        },
+        {
+          "source": "library_system.main.build_demo_library",
+          "target": "library_system.services.catalog.Catalog",
+          "type": "instantiates"
+        },
+        {
+          "source": "library_system.main.build_demo_library",
+          "target": "library_system.services.lending.LendingService",
+          "type": "instantiates"
+        },
+        {
+          "source": "library_system.main.build_demo_library",
+          "target": "library_system.models.member.Member",
+          "type": "instantiates"
+        }
+      ]
+    },
+    "library_system.main.run_demo": {
+      "id": "library_system.main.run_demo",
+      "component_type": "function",
+      "file_path": "<repo>/library_system/main.py",
+      "relative_path": "library_system\\main.py",
+      "depends_on": [
+        "library_system.main.build_demo_library",
+        "library_system.services.reports.inventory_report.inventory_summary",
+        "library_system.services.reports.member_report.overdue_report",
+        "library_system.services.reports.member_report.fines_summary"
+      ],
+      "source_code": "def run_demo():\n    catalog, lending = build_demo_library()\n    past = date.today() - timedelta(days=20)\n    late_loan = lending.checkout(\"M001\", \"978-0132350884\", start_date=past)\n    lending.checkout(\"M002\", \"978-0201633610\")\n    print(\"Inventory:\", inventory_summary(catalog))\n    print(\"Overdue:\", overdue_report(lending))\n    fine = lending.return_book(late_loan.loan_id)\n    print(f\"Fine charged on return: {fine:.2f}\")\n    print(\"Fines:\", fines_summary(lending))",
+      "start_line": 21,
+      "end_line": 30,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": "run_demo()",
+      "parameters": [],
+      "return_type": null,
+      "containing_class": null,
+      "relationships": [
+        {
+          "source": "library_system.main.run_demo",
+          "target": "library_system.services.reports.inventory_report.inventory_summary",
+          "type": "imports"
+        },
+        {
+          "source": "library_system.main.run_demo",
+          "target": "library_system.services.reports.member_report.fines_summary",
+          "type": "imports"
+        },
+        {
+          "source": "library_system.main.run_demo",
+          "target": "library_system.services.reports.member_report.overdue_report",
+          "type": "imports"
+        },
+        {
+          "source": "library_system.main.run_demo",
+          "target": "library_system.main.build_demo_library",
+          "type": "calls"
+        },
+        {
+          "source": "library_system.main.run_demo",
+          "target": "library_system.services.reports.inventory_report.inventory_summary",
+          "type": "calls"
+        },
+        {
+          "source": "library_system.main.run_demo",
+          "target": "library_system.services.reports.member_report.overdue_report",
+          "type": "calls"
+        },
+        {
+          "source": "library_system.main.run_demo",
+          "target": "library_system.services.reports.member_report.fines_summary",
+          "type": "calls"
+        }
+      ]
+    },
+    "library_system.models.book.Book": {
+      "id": "library_system.models.book.Book",
+      "component_type": "class",
+      "file_path": "<repo>/library_system/models/book.py",
+      "relative_path": "library_system\\models\\book.py",
+      "depends_on": [
+        "library_system.models.book.Book.is_available",
+        "library_system.models.book.Book.return_copy",
+        "library_system.models.book.Book.checkout_copy",
+        "library_system.models.book.Book.to_dict"
+      ],
+      "source_code": "class Book:\n    def __init__(self, isbn, title, author, year, copies=1):\n        if not isbn or len(isbn.replace(\"-\", \"\")) not in (10, 13):\n            raise ValueError(\"ISBN must contain 10 or 13 digits\")\n        if copies < 1:\n            raise ValueError(\"A book must have at least one copy\")\n        if year > date.today().year:\n            raise ValueError(\"Publication year cannot be in the future\")\n        self.isbn = isbn\n        self.title = title\n        self.author = author\n        self.year = year\n        self.total_copies = copies\n        self.available_copies = copies\n\n    def is_available(self):\n        return self.available_copies > 0\n\n    def checkout_copy(self):\n        if not self.is_available():\n            raise RuntimeError(f\"No copies of '{self.title}' are available\")\n        self.available_copies -= 1\n\n    def return_copy(self):\n        if self.available_copies >= self.total_copies:\n            raise RuntimeError(f\"All copies of '{self.title}' are already in stock\")\n        self.available_copies += 1\n\n    def to_dict(self):\n        return {\n            \"isbn\": self.isbn,\n            \"title\": self.title,\n            \"author\": self.author,\n            \"year\": self.year,\n            \"total_copies\": self.total_copies,\n            \"available_copies\": self.available_copies,\n        }",
+      "start_line": 4,
+      "end_line": 40,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": null,
+      "parameters": [],
+      "return_type": null,
+      "containing_class": null,
+      "relationships": [
+        {
+          "source": "library_system.models.book.Book",
+          "target": "library_system.models.book.Book.__init__",
+          "type": "contains"
+        },
+        {
+          "source": "library_system.models.book.Book",
+          "target": "library_system.models.book.Book.is_available",
+          "type": "contains"
+        },
+        {
+          "source": "library_system.models.book.Book",
+          "target": "library_system.models.book.Book.checkout_copy",
+          "type": "contains"
+        },
+        {
+          "source": "library_system.models.book.Book",
+          "target": "library_system.models.book.Book.return_copy",
+          "type": "contains"
+        },
+        {
+          "source": "library_system.models.book.Book",
+          "target": "library_system.models.book.Book.to_dict",
+          "type": "contains"
+        }
+      ]
+    },
+    "library_system.models.book.Book.__init__": {
+      "id": "library_system.models.book.Book.__init__",
+      "component_type": "method",
+      "file_path": "<repo>/library_system/models/book.py",
+      "relative_path": "library_system\\models\\book.py",
+      "depends_on": [],
+      "source_code": "def __init__(self, isbn, title, author, year, copies=1):\n        if not isbn or len(isbn.replace(\"-\", \"\")) not in (10, 13):\n            raise ValueError(\"ISBN must contain 10 or 13 digits\")\n        if copies < 1:\n            raise ValueError(\"A book must have at least one copy\")\n        if year > date.today().year:\n            raise ValueError(\"Publication year cannot be in the future\")\n        self.isbn = isbn\n        self.title = title\n        self.author = author\n        self.year = year\n        self.total_copies = copies\n        self.available_copies = copies",
+      "start_line": 5,
+      "end_line": 17,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": "__init__(self, isbn, title, author, year, copies = 1)",
+      "parameters": [
+        {
+          "name": "isbn",
+          "annotation": null,
+          "default": null
+        },
+        {
+          "name": "title",
+          "annotation": null,
+          "default": null
+        },
+        {
+          "name": "author",
+          "annotation": null,
+          "default": null
+        },
+        {
+          "name": "year",
+          "annotation": null,
+          "default": null
+        },
+        {
+          "name": "copies",
+          "annotation": null,
+          "default": "1"
+        }
+      ],
+      "return_type": null,
+      "containing_class": "library_system.models.book.Book",
+      "relationships": []
+    },
+    "library_system.models.book.Book.is_available": {
+      "id": "library_system.models.book.Book.is_available",
+      "component_type": "method",
+      "file_path": "<repo>/library_system/models/book.py",
+      "relative_path": "library_system\\models\\book.py",
+      "depends_on": [],
+      "source_code": "def is_available(self):\n        return self.available_copies > 0",
+      "start_line": 19,
+      "end_line": 20,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": "is_available(self)",
+      "parameters": [],
+      "return_type": null,
+      "containing_class": "library_system.models.book.Book",
+      "relationships": []
+    },
+    "library_system.models.book.Book.checkout_copy": {
+      "id": "library_system.models.book.Book.checkout_copy",
+      "component_type": "method",
+      "file_path": "<repo>/library_system/models/book.py",
+      "relative_path": "library_system\\models\\book.py",
+      "depends_on": [],
+      "source_code": "def checkout_copy(self):\n        if not self.is_available():\n            raise RuntimeError(f\"No copies of '{self.title}' are available\")\n        self.available_copies -= 1",
+      "start_line": 22,
+      "end_line": 25,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": "checkout_copy(self)",
+      "parameters": [],
+      "return_type": null,
+      "containing_class": "library_system.models.book.Book",
+      "relationships": [
+        {
+          "source": "library_system.models.book.Book.checkout_copy",
+          "target": "library_system.models.book.Book.is_available",
+          "type": "calls"
+        }
+      ]
+    },
+    "library_system.models.book.Book.return_copy": {
+      "id": "library_system.models.book.Book.return_copy",
+      "component_type": "method",
+      "file_path": "<repo>/library_system/models/book.py",
+      "relative_path": "library_system\\models\\book.py",
+      "depends_on": [],
+      "source_code": "def return_copy(self):\n        if self.available_copies >= self.total_copies:\n            raise RuntimeError(f\"All copies of '{self.title}' are already in stock\")\n        self.available_copies += 1",
+      "start_line": 27,
+      "end_line": 30,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": "return_copy(self)",
+      "parameters": [],
+      "return_type": null,
+      "containing_class": "library_system.models.book.Book",
+      "relationships": []
+    },
+    "library_system.models.book.Book.to_dict": {
+      "id": "library_system.models.book.Book.to_dict",
+      "component_type": "method",
+      "file_path": "<repo>/library_system/models/book.py",
+      "relative_path": "library_system\\models\\book.py",
+      "depends_on": [],
+      "source_code": "def to_dict(self):\n        return {\n            \"isbn\": self.isbn,\n            \"title\": self.title,\n            \"author\": self.author,\n            \"year\": self.year,\n            \"total_copies\": self.total_copies,\n            \"available_copies\": self.available_copies,\n        }",
+      "start_line": 32,
+      "end_line": 40,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": "to_dict(self)",
+      "parameters": [],
+      "return_type": null,
+      "containing_class": "library_system.models.book.Book",
+      "relationships": []
+    },
+    "library_system.models.loan.Loan": {
+      "id": "library_system.models.loan.Loan",
+      "component_type": "class",
+      "file_path": "<repo>/library_system/models/loan.py",
+      "relative_path": "library_system\\models\\loan.py",
+      "depends_on": [
+        "library_system.models.loan.Loan.days_overdue",
+        "library_system.models.loan.Loan.is_returned",
+        "library_system.models.loan.Loan.close",
+        "library_system.models.loan.Loan.renew"
+      ],
+      "source_code": "class Loan:\n    def __init__(self, loan_id, book, member, start_date=None):\n        self.loan_id = loan_id\n        self.book = book\n        self.member = member\n        self.start_date = start_date or date.today()\n        self.due_date = self.start_date + timedelta(days=LOAN_PERIOD_DAYS)\n        self.returned_on = None\n        self.renewals = 0\n\n    def is_returned(self):\n        return self.returned_on is not None\n\n    def days_overdue(self, as_of=None):\n        check_date = self.returned_on or as_of or date.today()\n        delta = (check_date - self.due_date).days\n        return max(delta, 0)\n\n    def renew(self):\n        if self.is_returned():\n            raise RuntimeError(\"Cannot renew a loan that has been returned\")\n        if self.renewals >= MAX_RENEWALS:\n            raise RuntimeError(\"Maximum number of renewals reached\")\n        if self.days_overdue() > 0:\n            raise RuntimeError(\"Overdue loans cannot be renewed\")\n        self.due_date = self.due_date + timedelta(days=LOAN_PERIOD_DAYS)\n        self.renewals += 1\n        return self.due_date\n\n    def close(self, returned_on=None):\n        self.returned_on = returned_on or date.today()",
+      "start_line": 7,
+      "end_line": 37,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": null,
+      "parameters": [],
+      "return_type": null,
+      "containing_class": null,
+      "relationships": [
+        {
+          "source": "library_system.models.loan.Loan",
+          "target": "library_system.models.loan.Loan.__init__",
+          "type": "contains"
+        },
+        {
+          "source": "library_system.models.loan.Loan",
+          "target": "library_system.models.loan.Loan.is_returned",
+          "type": "contains"
+        },
+        {
+          "source": "library_system.models.loan.Loan",
+          "target": "library_system.models.loan.Loan.days_overdue",
+          "type": "contains"
+        },
+        {
+          "source": "library_system.models.loan.Loan",
+          "target": "library_system.models.loan.Loan.renew",
+          "type": "contains"
+        },
+        {
+          "source": "library_system.models.loan.Loan",
+          "target": "library_system.models.loan.Loan.close",
+          "type": "contains"
+        }
+      ]
+    },
+    "library_system.models.loan.Loan.__init__": {
+      "id": "library_system.models.loan.Loan.__init__",
+      "component_type": "method",
+      "file_path": "<repo>/library_system/models/loan.py",
+      "relative_path": "library_system\\models\\loan.py",
+      "depends_on": [],
+      "source_code": "def __init__(self, loan_id, book, member, start_date=None):\n        self.loan_id = loan_id\n        self.book = book\n        self.member = member\n        self.start_date = start_date or date.today()\n        self.due_date = self.start_date + timedelta(days=LOAN_PERIOD_DAYS)\n        self.returned_on = None\n        self.renewals = 0",
+      "start_line": 8,
+      "end_line": 15,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": "__init__(self, loan_id, book, member, start_date = None)",
+      "parameters": [
+        {
+          "name": "loan_id",
+          "annotation": null,
+          "default": null
+        },
+        {
+          "name": "book",
+          "annotation": null,
+          "default": null
+        },
+        {
+          "name": "member",
+          "annotation": null,
+          "default": null
+        },
+        {
+          "name": "start_date",
+          "annotation": null,
+          "default": "None"
+        }
+      ],
+      "return_type": null,
+      "containing_class": "library_system.models.loan.Loan",
+      "relationships": []
+    },
+    "library_system.models.loan.Loan.is_returned": {
+      "id": "library_system.models.loan.Loan.is_returned",
+      "component_type": "method",
+      "file_path": "<repo>/library_system/models/loan.py",
+      "relative_path": "library_system\\models\\loan.py",
+      "depends_on": [],
+      "source_code": "def is_returned(self):\n        return self.returned_on is not None",
+      "start_line": 17,
+      "end_line": 18,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": "is_returned(self)",
+      "parameters": [],
+      "return_type": null,
+      "containing_class": "library_system.models.loan.Loan",
+      "relationships": []
+    },
+    "library_system.models.loan.Loan.days_overdue": {
+      "id": "library_system.models.loan.Loan.days_overdue",
+      "component_type": "method",
+      "file_path": "<repo>/library_system/models/loan.py",
+      "relative_path": "library_system\\models\\loan.py",
+      "depends_on": [],
+      "source_code": "def days_overdue(self, as_of=None):\n        check_date = self.returned_on or as_of or date.today()\n        delta = (check_date - self.due_date).days\n        return max(delta, 0)",
+      "start_line": 20,
+      "end_line": 23,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": "days_overdue(self, as_of = None)",
+      "parameters": [
+        {
+          "name": "as_of",
+          "annotation": null,
+          "default": "None"
+        }
+      ],
+      "return_type": null,
+      "containing_class": "library_system.models.loan.Loan",
+      "relationships": []
+    },
+    "library_system.models.loan.Loan.renew": {
+      "id": "library_system.models.loan.Loan.renew",
+      "component_type": "method",
+      "file_path": "<repo>/library_system/models/loan.py",
+      "relative_path": "library_system\\models\\loan.py",
+      "depends_on": [],
+      "source_code": "def renew(self):\n        if self.is_returned():\n            raise RuntimeError(\"Cannot renew a loan that has been returned\")\n        if self.renewals >= MAX_RENEWALS:\n            raise RuntimeError(\"Maximum number of renewals reached\")\n        if self.days_overdue() > 0:\n            raise RuntimeError(\"Overdue loans cannot be renewed\")\n        self.due_date = self.due_date + timedelta(days=LOAN_PERIOD_DAYS)\n        self.renewals += 1\n        return self.due_date",
+      "start_line": 25,
+      "end_line": 34,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": "renew(self)",
+      "parameters": [],
+      "return_type": null,
+      "containing_class": "library_system.models.loan.Loan",
+      "relationships": [
+        {
+          "source": "library_system.models.loan.Loan.renew",
+          "target": "library_system.models.loan.Loan.is_returned",
+          "type": "calls"
+        },
+        {
+          "source": "library_system.models.loan.Loan.renew",
+          "target": "library_system.models.loan.Loan.days_overdue",
+          "type": "calls"
+        }
+      ]
+    },
+    "library_system.models.loan.Loan.close": {
+      "id": "library_system.models.loan.Loan.close",
+      "component_type": "method",
+      "file_path": "<repo>/library_system/models/loan.py",
+      "relative_path": "library_system\\models\\loan.py",
+      "depends_on": [],
+      "source_code": "def close(self, returned_on=None):\n        self.returned_on = returned_on or date.today()",
+      "start_line": 36,
+      "end_line": 37,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": "close(self, returned_on = None)",
+      "parameters": [
+        {
+          "name": "returned_on",
+          "annotation": null,
+          "default": "None"
+        }
+      ],
+      "return_type": null,
+      "containing_class": "library_system.models.loan.Loan",
+      "relationships": []
+    },
+    "library_system.models.member.Member": {
+      "id": "library_system.models.member.Member",
+      "component_type": "class",
+      "file_path": "<repo>/library_system/models/member.py",
+      "relative_path": "library_system\\models\\member.py",
+      "depends_on": [
+        "library_system.models.member.Member.add_fine",
+        "library_system.models.member.Member.pay_fine",
+        "library_system.models.member.Member.borrow_limit",
+        "library_system.models.member.Member.can_borrow"
+      ],
+      "source_code": "class Member:\n    def __init__(self, member_id, name, email, membership_type=\"standard\"):\n        if not EMAIL_PATTERN.match(email):\n            raise ValueError(f\"Invalid email address: {email}\")\n        if membership_type not in MEMBERSHIP_LIMITS:\n            raise ValueError(f\"Unknown membership type: {membership_type}\")\n        self.member_id = member_id\n        self.name = name\n        self.email = email\n        self.membership_type = membership_type\n        self.active_loans = []\n        self.outstanding_fines = 0.0\n\n    def borrow_limit(self):\n        return MEMBERSHIP_LIMITS[self.membership_type]\n\n    def can_borrow(self):\n        if self.outstanding_fines > 0:\n            return False\n        return len(self.active_loans) < self.borrow_limit()\n\n    def add_fine(self, amount):\n        if amount < 0:\n            raise ValueError(\"Fine amount cannot be negative\")\n        self.outstanding_fines = round(self.outstanding_fines + amount, 2)\n\n    def pay_fine(self, amount):\n        if amount <= 0:\n            raise ValueError(\"Payment amount must be positive\")\n        if amount > self.outstanding_fines:\n            raise ValueError(\"Payment exceeds outstanding fines\")\n        self.outstanding_fines = round(self.outstanding_fines - amount, 2)\n        return self.outstanding_fines",
+      "start_line": 12,
+      "end_line": 44,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": null,
+      "parameters": [],
+      "return_type": null,
+      "containing_class": null,
+      "relationships": [
+        {
+          "source": "library_system.models.member.Member",
+          "target": "library_system.models.member.Member.__init__",
+          "type": "contains"
+        },
+        {
+          "source": "library_system.models.member.Member",
+          "target": "library_system.models.member.Member.borrow_limit",
+          "type": "contains"
+        },
+        {
+          "source": "library_system.models.member.Member",
+          "target": "library_system.models.member.Member.can_borrow",
+          "type": "contains"
+        },
+        {
+          "source": "library_system.models.member.Member",
+          "target": "library_system.models.member.Member.add_fine",
+          "type": "contains"
+        },
+        {
+          "source": "library_system.models.member.Member",
+          "target": "library_system.models.member.Member.pay_fine",
+          "type": "contains"
+        }
+      ]
+    },
+    "library_system.models.member.Member.__init__": {
+      "id": "library_system.models.member.Member.__init__",
+      "component_type": "method",
+      "file_path": "<repo>/library_system/models/member.py",
+      "relative_path": "library_system\\models\\member.py",
+      "depends_on": [],
+      "source_code": "def __init__(self, member_id, name, email, membership_type=\"standard\"):\n        if not EMAIL_PATTERN.match(email):\n            raise ValueError(f\"Invalid email address: {email}\")\n        if membership_type not in MEMBERSHIP_LIMITS:\n            raise ValueError(f\"Unknown membership type: {membership_type}\")\n        self.member_id = member_id\n        self.name = name\n        self.email = email\n        self.membership_type = membership_type\n        self.active_loans = []\n        self.outstanding_fines = 0.0",
+      "start_line": 13,
+      "end_line": 23,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": "__init__(self, member_id, name, email, membership_type = 'standard')",
+      "parameters": [
+        {
+          "name": "member_id",
+          "annotation": null,
+          "default": null
+        },
+        {
+          "name": "name",
+          "annotation": null,
+          "default": null
+        },
+        {
+          "name": "email",
+          "annotation": null,
+          "default": null
+        },
+        {
+          "name": "membership_type",
+          "annotation": null,
+          "default": "'standard'"
+        }
+      ],
+      "return_type": null,
+      "containing_class": "library_system.models.member.Member",
+      "relationships": []
+    },
+    "library_system.models.member.Member.borrow_limit": {
+      "id": "library_system.models.member.Member.borrow_limit",
+      "component_type": "method",
+      "file_path": "<repo>/library_system/models/member.py",
+      "relative_path": "library_system\\models\\member.py",
+      "depends_on": [],
+      "source_code": "def borrow_limit(self):\n        return MEMBERSHIP_LIMITS[self.membership_type]",
+      "start_line": 25,
+      "end_line": 26,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": "borrow_limit(self)",
+      "parameters": [],
+      "return_type": null,
+      "containing_class": "library_system.models.member.Member",
+      "relationships": []
+    },
+    "library_system.models.member.Member.can_borrow": {
+      "id": "library_system.models.member.Member.can_borrow",
+      "component_type": "method",
+      "file_path": "<repo>/library_system/models/member.py",
+      "relative_path": "library_system\\models\\member.py",
+      "depends_on": [],
+      "source_code": "def can_borrow(self):\n        if self.outstanding_fines > 0:\n            return False\n        return len(self.active_loans) < self.borrow_limit()",
+      "start_line": 28,
+      "end_line": 31,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": "can_borrow(self)",
+      "parameters": [],
+      "return_type": null,
+      "containing_class": "library_system.models.member.Member",
+      "relationships": [
+        {
+          "source": "library_system.models.member.Member.can_borrow",
+          "target": "library_system.models.member.Member.borrow_limit",
+          "type": "calls"
+        }
+      ]
+    },
+    "library_system.models.member.Member.add_fine": {
+      "id": "library_system.models.member.Member.add_fine",
+      "component_type": "method",
+      "file_path": "<repo>/library_system/models/member.py",
+      "relative_path": "library_system\\models\\member.py",
+      "depends_on": [],
+      "source_code": "def add_fine(self, amount):\n        if amount < 0:\n            raise ValueError(\"Fine amount cannot be negative\")\n        self.outstanding_fines = round(self.outstanding_fines + amount, 2)",
+      "start_line": 33,
+      "end_line": 36,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": "add_fine(self, amount)",
+      "parameters": [
+        {
+          "name": "amount",
+          "annotation": null,
+          "default": null
+        }
+      ],
+      "return_type": null,
+      "containing_class": "library_system.models.member.Member",
+      "relationships": []
+    },
+    "library_system.models.member.Member.pay_fine": {
+      "id": "library_system.models.member.Member.pay_fine",
+      "component_type": "method",
+      "file_path": "<repo>/library_system/models/member.py",
+      "relative_path": "library_system\\models\\member.py",
+      "depends_on": [],
+      "source_code": "def pay_fine(self, amount):\n        if amount <= 0:\n            raise ValueError(\"Payment amount must be positive\")\n        if amount > self.outstanding_fines:\n            raise ValueError(\"Payment exceeds outstanding fines\")\n        self.outstanding_fines = round(self.outstanding_fines - amount, 2)\n        return self.outstanding_fines",
+      "start_line": 38,
+      "end_line": 44,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": "pay_fine(self, amount)",
+      "parameters": [
+        {
+          "name": "amount",
+          "annotation": null,
+          "default": null
+        }
+      ],
+      "return_type": null,
+      "containing_class": "library_system.models.member.Member",
+      "relationships": []
+    },
+    "library_system.services.catalog.Catalog": {
+      "id": "library_system.services.catalog.Catalog",
+      "component_type": "class",
+      "file_path": "<repo>/library_system/services/catalog.py",
+      "relative_path": "library_system\\services\\catalog.py",
+      "depends_on": [
+        "library_system.services.catalog.Catalog.remove_book",
+        "library_system.services.catalog.Catalog.get_book",
+        "library_system.services.catalog.Catalog.all_books",
+        "library_system.services.catalog.Catalog.search",
+        "library_system.models.book.Book",
+        "library_system.services.catalog.Catalog.list_available",
+        "library_system.services.catalog.Catalog.add_book"
+      ],
+      "source_code": "class Catalog:\n    def __init__(self):\n        self._books = {}\n\n    def add_book(self, isbn, title, author, year, copies=1):\n        if isbn in self._books:\n            existing = self._books[isbn]\n            existing.total_copies += copies\n            existing.available_copies += copies\n            return existing\n        book = Book(isbn, title, author, year, copies)\n        self._books[isbn] = book\n        return book\n\n    def remove_book(self, isbn):\n        book = self.get_book(isbn)\n        if book.available_copies != book.total_copies:\n            raise RuntimeError(\"Cannot remove a book that has copies on loan\")\n        del self._books[isbn]\n\n    def get_book(self, isbn):\n        if isbn not in self._books:\n            raise KeyError(f\"No book with ISBN {isbn}\")\n        return self._books[isbn]\n\n    def search(self, keyword):\n        keyword = keyword.lower()\n        return [\n            book\n            for book in self._books.values()\n            if keyword in book.title.lower() or keyword in book.author.lower()\n        ]\n\n    def list_available(self):\n        return sorted(\n            (book for book in self._books.values() if book.is_available()),\n            key=lambda book: book.title,\n        )\n\n    def all_books(self):\n        return list(self._books.values())",
+      "start_line": 4,
+      "end_line": 44,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": null,
+      "parameters": [],
+      "return_type": null,
+      "containing_class": null,
+      "relationships": [
+        {
+          "source": "library_system.services.catalog.Catalog",
+          "target": "library_system.services.catalog.Catalog.__init__",
+          "type": "contains"
+        },
+        {
+          "source": "library_system.services.catalog.Catalog",
+          "target": "library_system.services.catalog.Catalog.add_book",
+          "type": "contains"
+        },
+        {
+          "source": "library_system.services.catalog.Catalog",
+          "target": "library_system.services.catalog.Catalog.remove_book",
+          "type": "contains"
+        },
+        {
+          "source": "library_system.services.catalog.Catalog",
+          "target": "library_system.services.catalog.Catalog.get_book",
+          "type": "contains"
+        },
+        {
+          "source": "library_system.services.catalog.Catalog",
+          "target": "library_system.services.catalog.Catalog.search",
+          "type": "contains"
+        },
+        {
+          "source": "library_system.services.catalog.Catalog",
+          "target": "library_system.services.catalog.Catalog.list_available",
+          "type": "contains"
+        },
+        {
+          "source": "library_system.services.catalog.Catalog",
+          "target": "library_system.services.catalog.Catalog.all_books",
+          "type": "contains"
+        },
+        {
+          "source": "library_system.services.catalog.Catalog",
+          "target": "library_system.models.book.Book",
+          "type": "imports"
+        }
+      ]
+    },
+    "library_system.services.catalog.Catalog.__init__": {
+      "id": "library_system.services.catalog.Catalog.__init__",
+      "component_type": "method",
+      "file_path": "<repo>/library_system/services/catalog.py",
+      "relative_path": "library_system\\services\\catalog.py",
+      "depends_on": [],
+      "source_code": "def __init__(self):\n        self._books = {}",
+      "start_line": 5,
+      "end_line": 6,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": "__init__(self)",
+      "parameters": [],
+      "return_type": null,
+      "containing_class": "library_system.services.catalog.Catalog",
+      "relationships": []
+    },
+    "library_system.services.catalog.Catalog.add_book": {
+      "id": "library_system.services.catalog.Catalog.add_book",
+      "component_type": "method",
+      "file_path": "<repo>/library_system/services/catalog.py",
+      "relative_path": "library_system\\services\\catalog.py",
+      "depends_on": [
+        "library_system.models.book.Book"
+      ],
+      "source_code": "def add_book(self, isbn, title, author, year, copies=1):\n        if isbn in self._books:\n            existing = self._books[isbn]\n            existing.total_copies += copies\n            existing.available_copies += copies\n            return existing\n        book = Book(isbn, title, author, year, copies)\n        self._books[isbn] = book\n        return book",
+      "start_line": 8,
+      "end_line": 16,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": "add_book(self, isbn, title, author, year, copies = 1)",
+      "parameters": [
+        {
+          "name": "isbn",
+          "annotation": null,
+          "default": null
+        },
+        {
+          "name": "title",
+          "annotation": null,
+          "default": null
+        },
+        {
+          "name": "author",
+          "annotation": null,
+          "default": null
+        },
+        {
+          "name": "year",
+          "annotation": null,
+          "default": null
+        },
+        {
+          "name": "copies",
+          "annotation": null,
+          "default": "1"
+        }
+      ],
+      "return_type": null,
+      "containing_class": "library_system.services.catalog.Catalog",
+      "relationships": [
+        {
+          "source": "library_system.services.catalog.Catalog.add_book",
+          "target": "library_system.models.book.Book",
+          "type": "imports"
+        },
+        {
+          "source": "library_system.services.catalog.Catalog.add_book",
+          "target": "library_system.models.book.Book",
+          "type": "instantiates"
+        }
+      ]
+    },
+    "library_system.services.catalog.Catalog.remove_book": {
+      "id": "library_system.services.catalog.Catalog.remove_book",
+      "component_type": "method",
+      "file_path": "<repo>/library_system/services/catalog.py",
+      "relative_path": "library_system\\services\\catalog.py",
+      "depends_on": [],
+      "source_code": "def remove_book(self, isbn):\n        book = self.get_book(isbn)\n        if book.available_copies != book.total_copies:\n            raise RuntimeError(\"Cannot remove a book that has copies on loan\")\n        del self._books[isbn]",
+      "start_line": 18,
+      "end_line": 22,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": "remove_book(self, isbn)",
+      "parameters": [
+        {
+          "name": "isbn",
+          "annotation": null,
+          "default": null
+        }
+      ],
+      "return_type": null,
+      "containing_class": "library_system.services.catalog.Catalog",
+      "relationships": [
+        {
+          "source": "library_system.services.catalog.Catalog.remove_book",
+          "target": "library_system.services.catalog.Catalog.get_book",
+          "type": "calls"
+        }
+      ]
+    },
+    "library_system.services.catalog.Catalog.get_book": {
+      "id": "library_system.services.catalog.Catalog.get_book",
+      "component_type": "method",
+      "file_path": "<repo>/library_system/services/catalog.py",
+      "relative_path": "library_system\\services\\catalog.py",
+      "depends_on": [],
+      "source_code": "def get_book(self, isbn):\n        if isbn not in self._books:\n            raise KeyError(f\"No book with ISBN {isbn}\")\n        return self._books[isbn]",
+      "start_line": 24,
+      "end_line": 27,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": "get_book(self, isbn)",
+      "parameters": [
+        {
+          "name": "isbn",
+          "annotation": null,
+          "default": null
+        }
+      ],
+      "return_type": null,
+      "containing_class": "library_system.services.catalog.Catalog",
+      "relationships": []
+    },
+    "library_system.services.catalog.Catalog.search": {
+      "id": "library_system.services.catalog.Catalog.search",
+      "component_type": "method",
+      "file_path": "<repo>/library_system/services/catalog.py",
+      "relative_path": "library_system\\services\\catalog.py",
+      "depends_on": [],
+      "source_code": "def search(self, keyword):\n        keyword = keyword.lower()\n        return [\n            book\n            for book in self._books.values()\n            if keyword in book.title.lower() or keyword in book.author.lower()\n        ]",
+      "start_line": 29,
+      "end_line": 35,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": "search(self, keyword)",
+      "parameters": [
+        {
+          "name": "keyword",
+          "annotation": null,
+          "default": null
+        }
+      ],
+      "return_type": null,
+      "containing_class": "library_system.services.catalog.Catalog",
+      "relationships": []
+    },
+    "library_system.services.catalog.Catalog.list_available": {
+      "id": "library_system.services.catalog.Catalog.list_available",
+      "component_type": "method",
+      "file_path": "<repo>/library_system/services/catalog.py",
+      "relative_path": "library_system\\services\\catalog.py",
+      "depends_on": [],
+      "source_code": "def list_available(self):\n        return sorted(\n            (book for book in self._books.values() if book.is_available()),\n            key=lambda book: book.title,\n        )",
+      "start_line": 37,
+      "end_line": 41,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": "list_available(self)",
+      "parameters": [],
+      "return_type": null,
+      "containing_class": "library_system.services.catalog.Catalog",
+      "relationships": []
+    },
+    "library_system.services.catalog.Catalog.all_books": {
+      "id": "library_system.services.catalog.Catalog.all_books",
+      "component_type": "method",
+      "file_path": "<repo>/library_system/services/catalog.py",
+      "relative_path": "library_system\\services\\catalog.py",
+      "depends_on": [],
+      "source_code": "def all_books(self):\n        return list(self._books.values())",
+      "start_line": 43,
+      "end_line": 44,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": "all_books(self)",
+      "parameters": [],
+      "return_type": null,
+      "containing_class": "library_system.services.catalog.Catalog",
+      "relationships": []
+    },
+    "library_system.services.fines.calculate_fine": {
+      "id": "library_system.services.fines.calculate_fine",
+      "component_type": "function",
+      "file_path": "<repo>/library_system/services/fines.py",
+      "relative_path": "library_system\\services\\fines.py",
+      "depends_on": [],
+      "source_code": "def calculate_fine(loan, as_of=None):\n    overdue = loan.days_overdue(as_of)\n    if overdue <= GRACE_PERIOD_DAYS:\n        return 0.0\n    fine = overdue * DAILY_FINE_RATE\n    return round(min(fine, MAX_FINE_PER_LOAN), 2)",
+      "start_line": 6,
+      "end_line": 11,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": "calculate_fine(loan, as_of = None)",
+      "parameters": [
+        {
+          "name": "loan",
+          "annotation": null,
+          "default": null
+        },
+        {
+          "name": "as_of",
+          "annotation": null,
+          "default": "None"
+        }
+      ],
+      "return_type": null,
+      "containing_class": null,
+      "relationships": []
+    },
+    "library_system.services.fines.total_outstanding": {
+      "id": "library_system.services.fines.total_outstanding",
+      "component_type": "function",
+      "file_path": "<repo>/library_system/services/fines.py",
+      "relative_path": "library_system\\services\\fines.py",
+      "depends_on": [],
+      "source_code": "def total_outstanding(members):\n    return round(sum(member.outstanding_fines for member in members), 2)",
+      "start_line": 14,
+      "end_line": 15,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": "total_outstanding(members)",
+      "parameters": [
+        {
+          "name": "members",
+          "annotation": null,
+          "default": null
+        }
+      ],
+      "return_type": null,
+      "containing_class": null,
+      "relationships": []
+    },
+    "library_system.services.lending.LendingService": {
+      "id": "library_system.services.lending.LendingService",
+      "component_type": "class",
+      "file_path": "<repo>/library_system/services/lending.py",
+      "relative_path": "library_system\\services\\lending.py",
+      "depends_on": [
+        "library_system.services.fines.calculate_fine",
+        "library_system.services.lending.LendingService.register_member",
+        "library_system.services.lending.LendingService.overdue_loans",
+        "library_system.models.loan.Loan",
+        "library_system.services.lending.LendingService.return_book",
+        "library_system.services.lending.LendingService.checkout"
+      ],
+      "source_code": "class LendingService:\n    def __init__(self, catalog):\n        self.catalog = catalog\n        self.members = {}\n        self.loans = {}\n        self._loan_ids = count(1)\n\n    def register_member(self, member):\n        if member.member_id in self.members:\n            raise ValueError(f\"Member {member.member_id} already registered\")\n        self.members[member.member_id] = member\n        return member\n\n    def checkout(self, member_id, isbn, start_date=None):\n        member = self.members[member_id]\n        book = self.catalog.get_book(isbn)\n        if not member.can_borrow():\n            raise PermissionError(f\"Member {member_id} cannot borrow more books\")\n        if any(loan.book.isbn == isbn for loan in member.active_loans):\n            raise PermissionError(\"Member already has a copy of this book\")\n        book.checkout_copy()\n        loan = Loan(next(self._loan_ids), book, member, start_date)\n        member.active_loans.append(loan)\n        self.loans[loan.loan_id] = loan\n        return loan\n\n    def return_book(self, loan_id, returned_on=None):\n        loan = self.loans[loan_id]\n        if loan.is_returned():\n            raise RuntimeError(f\"Loan {loan_id} was already returned\")\n        loan.close(returned_on or date.today())\n        loan.book.return_copy()\n        loan.member.active_loans.remove(loan)\n        fine = calculate_fine(loan)\n        if fine > 0:\n            loan.member.add_fine(fine)\n        return fine\n\n    def overdue_loans(self, as_of=None):\n        return [\n            loan\n            for loan in self.loans.values()\n            if not loan.is_returned() and loan.days_overdue(as_of) > 0\n        ]",
+      "start_line": 8,
+      "end_line": 51,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": null,
+      "parameters": [],
+      "return_type": null,
+      "containing_class": null,
+      "relationships": [
+        {
+          "source": "library_system.services.lending.LendingService",
+          "target": "library_system.services.lending.LendingService.__init__",
+          "type": "contains"
+        },
+        {
+          "source": "library_system.services.lending.LendingService",
+          "target": "library_system.services.lending.LendingService.register_member",
+          "type": "contains"
+        },
+        {
+          "source": "library_system.services.lending.LendingService",
+          "target": "library_system.services.lending.LendingService.checkout",
+          "type": "contains"
+        },
+        {
+          "source": "library_system.services.lending.LendingService",
+          "target": "library_system.services.lending.LendingService.return_book",
+          "type": "contains"
+        },
+        {
+          "source": "library_system.services.lending.LendingService",
+          "target": "library_system.services.lending.LendingService.overdue_loans",
+          "type": "contains"
+        },
+        {
+          "source": "library_system.services.lending.LendingService",
+          "target": "library_system.models.loan.Loan",
+          "type": "imports"
+        },
+        {
+          "source": "library_system.services.lending.LendingService",
+          "target": "library_system.services.fines.calculate_fine",
+          "type": "imports"
+        }
+      ]
+    },
+    "library_system.services.lending.LendingService.__init__": {
+      "id": "library_system.services.lending.LendingService.__init__",
+      "component_type": "method",
+      "file_path": "<repo>/library_system/services/lending.py",
+      "relative_path": "library_system\\services\\lending.py",
+      "depends_on": [],
+      "source_code": "def __init__(self, catalog):\n        self.catalog = catalog\n        self.members = {}\n        self.loans = {}\n        self._loan_ids = count(1)",
+      "start_line": 9,
+      "end_line": 13,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": "__init__(self, catalog)",
+      "parameters": [
+        {
+          "name": "catalog",
+          "annotation": null,
+          "default": null
+        }
+      ],
+      "return_type": null,
+      "containing_class": "library_system.services.lending.LendingService",
+      "relationships": []
+    },
+    "library_system.services.lending.LendingService.register_member": {
+      "id": "library_system.services.lending.LendingService.register_member",
+      "component_type": "method",
+      "file_path": "<repo>/library_system/services/lending.py",
+      "relative_path": "library_system\\services\\lending.py",
+      "depends_on": [],
+      "source_code": "def register_member(self, member):\n        if member.member_id in self.members:\n            raise ValueError(f\"Member {member.member_id} already registered\")\n        self.members[member.member_id] = member\n        return member",
+      "start_line": 15,
+      "end_line": 19,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": "register_member(self, member)",
+      "parameters": [
+        {
+          "name": "member",
+          "annotation": null,
+          "default": null
+        }
+      ],
+      "return_type": null,
+      "containing_class": "library_system.services.lending.LendingService",
+      "relationships": []
+    },
+    "library_system.services.lending.LendingService.checkout": {
+      "id": "library_system.services.lending.LendingService.checkout",
+      "component_type": "method",
+      "file_path": "<repo>/library_system/services/lending.py",
+      "relative_path": "library_system\\services\\lending.py",
+      "depends_on": [
+        "library_system.models.loan.Loan"
+      ],
+      "source_code": "def checkout(self, member_id, isbn, start_date=None):\n        member = self.members[member_id]\n        book = self.catalog.get_book(isbn)\n        if not member.can_borrow():\n            raise PermissionError(f\"Member {member_id} cannot borrow more books\")\n        if any(loan.book.isbn == isbn for loan in member.active_loans):\n            raise PermissionError(\"Member already has a copy of this book\")\n        book.checkout_copy()\n        loan = Loan(next(self._loan_ids), book, member, start_date)\n        member.active_loans.append(loan)\n        self.loans[loan.loan_id] = loan\n        return loan",
+      "start_line": 21,
+      "end_line": 32,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": "checkout(self, member_id, isbn, start_date = None)",
+      "parameters": [
+        {
+          "name": "member_id",
+          "annotation": null,
+          "default": null
+        },
+        {
+          "name": "isbn",
+          "annotation": null,
+          "default": null
+        },
+        {
+          "name": "start_date",
+          "annotation": null,
+          "default": "None"
+        }
+      ],
+      "return_type": null,
+      "containing_class": "library_system.services.lending.LendingService",
+      "relationships": [
+        {
+          "source": "library_system.services.lending.LendingService.checkout",
+          "target": "library_system.models.loan.Loan",
+          "type": "imports"
+        },
+        {
+          "source": "library_system.services.lending.LendingService.checkout",
+          "target": "library_system.models.loan.Loan",
+          "type": "instantiates"
+        }
+      ]
+    },
+    "library_system.services.lending.LendingService.return_book": {
+      "id": "library_system.services.lending.LendingService.return_book",
+      "component_type": "method",
+      "file_path": "<repo>/library_system/services/lending.py",
+      "relative_path": "library_system\\services\\lending.py",
+      "depends_on": [
+        "library_system.services.fines.calculate_fine"
+      ],
+      "source_code": "def return_book(self, loan_id, returned_on=None):\n        loan = self.loans[loan_id]\n        if loan.is_returned():\n            raise RuntimeError(f\"Loan {loan_id} was already returned\")\n        loan.close(returned_on or date.today())\n        loan.book.return_copy()\n        loan.member.active_loans.remove(loan)\n        fine = calculate_fine(loan)\n        if fine > 0:\n            loan.member.add_fine(fine)\n        return fine",
+      "start_line": 34,
+      "end_line": 44,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": "return_book(self, loan_id, returned_on = None)",
+      "parameters": [
+        {
+          "name": "loan_id",
+          "annotation": null,
+          "default": null
+        },
+        {
+          "name": "returned_on",
+          "annotation": null,
+          "default": "None"
+        }
+      ],
+      "return_type": null,
+      "containing_class": "library_system.services.lending.LendingService",
+      "relationships": [
+        {
+          "source": "library_system.services.lending.LendingService.return_book",
+          "target": "library_system.services.fines.calculate_fine",
+          "type": "imports"
+        },
+        {
+          "source": "library_system.services.lending.LendingService.return_book",
+          "target": "library_system.services.fines.calculate_fine",
+          "type": "calls"
+        }
+      ]
+    },
+    "library_system.services.lending.LendingService.overdue_loans": {
+      "id": "library_system.services.lending.LendingService.overdue_loans",
+      "component_type": "method",
+      "file_path": "<repo>/library_system/services/lending.py",
+      "relative_path": "library_system\\services\\lending.py",
+      "depends_on": [],
+      "source_code": "def overdue_loans(self, as_of=None):\n        return [\n            loan\n            for loan in self.loans.values()\n            if not loan.is_returned() and loan.days_overdue(as_of) > 0\n        ]",
+      "start_line": 46,
+      "end_line": 51,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": "overdue_loans(self, as_of = None)",
+      "parameters": [
+        {
+          "name": "as_of",
+          "annotation": null,
+          "default": "None"
+        }
+      ],
+      "return_type": null,
+      "containing_class": "library_system.services.lending.LendingService",
+      "relationships": []
+    },
+    "library_system.services.reports.inventory_report.inventory_summary": {
+      "id": "library_system.services.reports.inventory_report.inventory_summary",
+      "component_type": "function",
+      "file_path": "<repo>/library_system/services/reports/inventory_report.py",
+      "relative_path": "library_system\\services\\reports\\inventory_report.py",
+      "depends_on": [],
+      "source_code": "def inventory_summary(catalog):\n    books = catalog.all_books()\n    total = sum(book.total_copies for book in books)\n    available = sum(book.available_copies for book in books)\n    return {\n        \"titles\": len(books),\n        \"total_copies\": total,\n        \"available_copies\": available,\n        \"on_loan\": total - available,\n    }",
+      "start_line": 4,
+      "end_line": 13,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": "inventory_summary(catalog)",
+      "parameters": [
+        {
+          "name": "catalog",
+          "annotation": null,
+          "default": null
+        }
+      ],
+      "return_type": null,
+      "containing_class": null,
+      "relationships": []
+    },
+    "library_system.services.reports.inventory_report.books_by_author": {
+      "id": "library_system.services.reports.inventory_report.books_by_author",
+      "component_type": "function",
+      "file_path": "<repo>/library_system/services/reports/inventory_report.py",
+      "relative_path": "library_system\\services\\reports\\inventory_report.py",
+      "depends_on": [],
+      "source_code": "def books_by_author(catalog):\n    counts = Counter(book.author for book in catalog.all_books())\n    return dict(sorted(counts.items(), key=lambda item: (-item[1], item[0])))",
+      "start_line": 16,
+      "end_line": 18,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": "books_by_author(catalog)",
+      "parameters": [
+        {
+          "name": "catalog",
+          "annotation": null,
+          "default": null
+        }
+      ],
+      "return_type": null,
+      "containing_class": null,
+      "relationships": []
+    },
+    "library_system.services.reports.member_report.member_activity": {
+      "id": "library_system.services.reports.member_report.member_activity",
+      "component_type": "function",
+      "file_path": "<repo>/library_system/services/reports/member_report.py",
+      "relative_path": "library_system\\services\\reports\\member_report.py",
+      "depends_on": [],
+      "source_code": "def member_activity(lending_service):\n    rows = []\n    for member in lending_service.members.values():\n        rows.append(\n            {\n                \"member_id\": member.member_id,\n                \"name\": member.name,\n                \"active_loans\": len(member.active_loans),\n                \"borrow_limit\": member.borrow_limit(),\n                \"outstanding_fines\": member.outstanding_fines,\n            }\n        )\n    return sorted(rows, key=lambda row: row[\"member_id\"])",
+      "start_line": 4,
+      "end_line": 16,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": "member_activity(lending_service)",
+      "parameters": [
+        {
+          "name": "lending_service",
+          "annotation": null,
+          "default": null
+        }
+      ],
+      "return_type": null,
+      "containing_class": null,
+      "relationships": []
+    },
+    "library_system.services.reports.member_report.overdue_report": {
+      "id": "library_system.services.reports.member_report.overdue_report",
+      "component_type": "function",
+      "file_path": "<repo>/library_system/services/reports/member_report.py",
+      "relative_path": "library_system\\services\\reports\\member_report.py",
+      "depends_on": [
+        "library_system.services.fines.calculate_fine"
+      ],
+      "source_code": "def overdue_report(lending_service, as_of=None):\n    report = []\n    for loan in lending_service.overdue_loans(as_of):\n        report.append(\n            {\n                \"loan_id\": loan.loan_id,\n                \"member_id\": loan.member.member_id,\n                \"isbn\": loan.book.isbn,\n                \"days_overdue\": loan.days_overdue(as_of),\n                \"projected_fine\": calculate_fine(loan, as_of),\n            }\n        )\n    return report",
+      "start_line": 19,
+      "end_line": 31,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": "overdue_report(lending_service, as_of = None)",
+      "parameters": [
+        {
+          "name": "lending_service",
+          "annotation": null,
+          "default": null
+        },
+        {
+          "name": "as_of",
+          "annotation": null,
+          "default": "None"
+        }
+      ],
+      "return_type": null,
+      "containing_class": null,
+      "relationships": [
+        {
+          "source": "library_system.services.reports.member_report.overdue_report",
+          "target": "library_system.services.fines.calculate_fine",
+          "type": "imports"
+        },
+        {
+          "source": "library_system.services.reports.member_report.overdue_report",
+          "target": "library_system.services.fines.calculate_fine",
+          "type": "calls"
+        }
+      ]
+    },
+    "library_system.services.reports.member_report.fines_summary": {
+      "id": "library_system.services.reports.member_report.fines_summary",
+      "component_type": "function",
+      "file_path": "<repo>/library_system/services/reports/member_report.py",
+      "relative_path": "library_system\\services\\reports\\member_report.py",
+      "depends_on": [
+        "library_system.services.fines.total_outstanding"
+      ],
+      "source_code": "def fines_summary(lending_service):\n    return {\n        \"total_outstanding\": total_outstanding(lending_service.members.values()),\n        \"members_with_fines\": sum(\n            1 for member in lending_service.members.values() if member.outstanding_fines > 0\n        ),\n    }",
+      "start_line": 34,
+      "end_line": 40,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": "fines_summary(lending_service)",
+      "parameters": [
+        {
+          "name": "lending_service",
+          "annotation": null,
+          "default": null
+        }
+      ],
+      "return_type": null,
+      "containing_class": null,
+      "relationships": [
+        {
+          "source": "library_system.services.reports.member_report.fines_summary",
+          "target": "library_system.services.fines.total_outstanding",
+          "type": "imports"
+        },
+        {
+          "source": "library_system.services.reports.member_report.fines_summary",
+          "target": "library_system.services.fines.total_outstanding",
+          "type": "calls"
+        }
+      ]
+    }
+  },
+  "relationships": [
+    {
+      "source": "library_system.main.build_demo_library",
+      "target": "library_system.models.member.Member",
+      "type": "imports"
+    },
+    {
+      "source": "library_system.main.build_demo_library",
+      "target": "library_system.services.catalog.Catalog",
+      "type": "imports"
+    },
+    {
+      "source": "library_system.main.build_demo_library",
+      "target": "library_system.services.lending.LendingService",
+      "type": "imports"
+    },
+    {
+      "source": "library_system.main.build_demo_library",
+      "target": "library_system.services.catalog.Catalog",
+      "type": "instantiates"
+    },
+    {
+      "source": "library_system.main.build_demo_library",
+      "target": "library_system.services.lending.LendingService",
+      "type": "instantiates"
+    },
+    {
+      "source": "library_system.main.build_demo_library",
+      "target": "library_system.models.member.Member",
+      "type": "instantiates"
+    },
+    {
+      "source": "library_system.main.run_demo",
+      "target": "library_system.services.reports.inventory_report.inventory_summary",
+      "type": "imports"
+    },
+    {
+      "source": "library_system.main.run_demo",
+      "target": "library_system.services.reports.member_report.fines_summary",
+      "type": "imports"
+    },
+    {
+      "source": "library_system.main.run_demo",
+      "target": "library_system.services.reports.member_report.overdue_report",
+      "type": "imports"
+    },
+    {
+      "source": "library_system.main.run_demo",
+      "target": "library_system.main.build_demo_library",
+      "type": "calls"
+    },
+    {
+      "source": "library_system.main.run_demo",
+      "target": "library_system.services.reports.inventory_report.inventory_summary",
+      "type": "calls"
+    },
+    {
+      "source": "library_system.main.run_demo",
+      "target": "library_system.services.reports.member_report.overdue_report",
+      "type": "calls"
+    },
+    {
+      "source": "library_system.main.run_demo",
+      "target": "library_system.services.reports.member_report.fines_summary",
+      "type": "calls"
+    },
+    {
+      "source": "library_system.models.book.Book",
+      "target": "library_system.models.book.Book.__init__",
+      "type": "contains"
+    },
+    {
+      "source": "library_system.models.book.Book",
+      "target": "library_system.models.book.Book.is_available",
+      "type": "contains"
+    },
+    {
+      "source": "library_system.models.book.Book",
+      "target": "library_system.models.book.Book.checkout_copy",
+      "type": "contains"
+    },
+    {
+      "source": "library_system.models.book.Book",
+      "target": "library_system.models.book.Book.return_copy",
+      "type": "contains"
+    },
+    {
+      "source": "library_system.models.book.Book",
+      "target": "library_system.models.book.Book.to_dict",
+      "type": "contains"
+    },
+    {
+      "source": "library_system.models.book.Book.checkout_copy",
+      "target": "library_system.models.book.Book.is_available",
+      "type": "calls"
+    },
+    {
+      "source": "library_system.models.loan.Loan",
+      "target": "library_system.models.loan.Loan.__init__",
+      "type": "contains"
+    },
+    {
+      "source": "library_system.models.loan.Loan",
+      "target": "library_system.models.loan.Loan.is_returned",
+      "type": "contains"
+    },
+    {
+      "source": "library_system.models.loan.Loan",
+      "target": "library_system.models.loan.Loan.days_overdue",
+      "type": "contains"
+    },
+    {
+      "source": "library_system.models.loan.Loan",
+      "target": "library_system.models.loan.Loan.renew",
+      "type": "contains"
+    },
+    {
+      "source": "library_system.models.loan.Loan",
+      "target": "library_system.models.loan.Loan.close",
+      "type": "contains"
+    },
+    {
+      "source": "library_system.models.loan.Loan.renew",
+      "target": "library_system.models.loan.Loan.is_returned",
+      "type": "calls"
+    },
+    {
+      "source": "library_system.models.loan.Loan.renew",
+      "target": "library_system.models.loan.Loan.days_overdue",
+      "type": "calls"
+    },
+    {
+      "source": "library_system.models.member.Member",
+      "target": "library_system.models.member.Member.__init__",
+      "type": "contains"
+    },
+    {
+      "source": "library_system.models.member.Member",
+      "target": "library_system.models.member.Member.borrow_limit",
+      "type": "contains"
+    },
+    {
+      "source": "library_system.models.member.Member",
+      "target": "library_system.models.member.Member.can_borrow",
+      "type": "contains"
+    },
+    {
+      "source": "library_system.models.member.Member",
+      "target": "library_system.models.member.Member.add_fine",
+      "type": "contains"
+    },
+    {
+      "source": "library_system.models.member.Member",
+      "target": "library_system.models.member.Member.pay_fine",
+      "type": "contains"
+    },
+    {
+      "source": "library_system.models.member.Member.can_borrow",
+      "target": "library_system.models.member.Member.borrow_limit",
+      "type": "calls"
+    },
+    {
+      "source": "library_system.services.catalog.Catalog",
+      "target": "library_system.services.catalog.Catalog.__init__",
+      "type": "contains"
+    },
+    {
+      "source": "library_system.services.catalog.Catalog",
+      "target": "library_system.services.catalog.Catalog.add_book",
+      "type": "contains"
+    },
+    {
+      "source": "library_system.services.catalog.Catalog",
+      "target": "library_system.services.catalog.Catalog.remove_book",
+      "type": "contains"
+    },
+    {
+      "source": "library_system.services.catalog.Catalog",
+      "target": "library_system.services.catalog.Catalog.get_book",
+      "type": "contains"
+    },
+    {
+      "source": "library_system.services.catalog.Catalog",
+      "target": "library_system.services.catalog.Catalog.search",
+      "type": "contains"
+    },
+    {
+      "source": "library_system.services.catalog.Catalog",
+      "target": "library_system.services.catalog.Catalog.list_available",
+      "type": "contains"
+    },
+    {
+      "source": "library_system.services.catalog.Catalog",
+      "target": "library_system.services.catalog.Catalog.all_books",
+      "type": "contains"
+    },
+    {
+      "source": "library_system.services.catalog.Catalog",
+      "target": "library_system.models.book.Book",
+      "type": "imports"
+    },
+    {
+      "source": "library_system.services.catalog.Catalog.add_book",
+      "target": "library_system.models.book.Book",
+      "type": "imports"
+    },
+    {
+      "source": "library_system.services.catalog.Catalog.add_book",
+      "target": "library_system.models.book.Book",
+      "type": "instantiates"
+    },
+    {
+      "source": "library_system.services.catalog.Catalog.remove_book",
+      "target": "library_system.services.catalog.Catalog.get_book",
+      "type": "calls"
+    },
+    {
+      "source": "library_system.services.lending.LendingService",
+      "target": "library_system.services.lending.LendingService.__init__",
+      "type": "contains"
+    },
+    {
+      "source": "library_system.services.lending.LendingService",
+      "target": "library_system.services.lending.LendingService.register_member",
+      "type": "contains"
+    },
+    {
+      "source": "library_system.services.lending.LendingService",
+      "target": "library_system.services.lending.LendingService.checkout",
+      "type": "contains"
+    },
+    {
+      "source": "library_system.services.lending.LendingService",
+      "target": "library_system.services.lending.LendingService.return_book",
+      "type": "contains"
+    },
+    {
+      "source": "library_system.services.lending.LendingService",
+      "target": "library_system.services.lending.LendingService.overdue_loans",
+      "type": "contains"
+    },
+    {
+      "source": "library_system.services.lending.LendingService",
+      "target": "library_system.models.loan.Loan",
+      "type": "imports"
+    },
+    {
+      "source": "library_system.services.lending.LendingService",
+      "target": "library_system.services.fines.calculate_fine",
+      "type": "imports"
+    },
+    {
+      "source": "library_system.services.lending.LendingService.checkout",
+      "target": "library_system.models.loan.Loan",
+      "type": "imports"
+    },
+    {
+      "source": "library_system.services.lending.LendingService.checkout",
+      "target": "library_system.models.loan.Loan",
+      "type": "instantiates"
+    },
+    {
+      "source": "library_system.services.lending.LendingService.return_book",
+      "target": "library_system.services.fines.calculate_fine",
+      "type": "imports"
+    },
+    {
+      "source": "library_system.services.lending.LendingService.return_book",
+      "target": "library_system.services.fines.calculate_fine",
+      "type": "calls"
+    },
+    {
+      "source": "library_system.services.reports.member_report.overdue_report",
+      "target": "library_system.services.fines.calculate_fine",
+      "type": "imports"
+    },
+    {
+      "source": "library_system.services.reports.member_report.overdue_report",
+      "target": "library_system.services.fines.calculate_fine",
+      "type": "calls"
+    },
+    {
+      "source": "library_system.services.reports.member_report.fines_summary",
+      "target": "library_system.services.fines.total_outstanding",
+      "type": "imports"
+    },
+    {
+      "source": "library_system.services.reports.member_report.fines_summary",
+      "target": "library_system.services.fines.total_outstanding",
+      "type": "calls"
+    }
+  ]
+}

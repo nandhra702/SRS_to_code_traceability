@@ -377,3 +377,68 @@ class TestEmbeddingsAndSearch:
         names = rows(live_store, "SELECT indexname FROM pg_indexes WHERE indexdef LIKE '%hnsw%' "
                                  "AND tablename LIKE 'test_tr_%'")
         assert len(names) == 3
+
+
+# ============================================================================
+# Migrations and path normalisation (schema 2.1.0)
+# ============================================================================
+
+
+class TestMigration:
+
+    def _downgrade_to_2_0_0(self, store):
+        """Recreate the 2.0.0 state: version row + the old 'simple' code tsvector."""
+        cfg = store._cfg
+        comp = cfg.table_components
+        with store.transaction() as cur:
+            cur.execute(f"UPDATE {cfg.table_migrations} SET version = '2.0.0'")
+            cur.execute(f"ALTER TABLE {comp} DROP COLUMN search_tsv")
+            cur.execute(
+                f"ALTER TABLE {comp} ADD COLUMN search_tsv tsvector GENERATED ALWAYS AS ("
+                f"to_tsvector('simple', regexp_replace(component_id || ' ' || coalesce(signature, '') "
+                f"|| ' ' || coalesce(source_code, ''), '[_.]', ' ', 'g'))) STORED")
+
+    def _matches(self, store, word):
+        return count(store, store._cfg.table_components,
+                     f"search_tsv @@ to_tsquery('english', '{word}')")
+
+    def test_2_0_0_database_is_migrated_with_data_intact(self, live_store, repo_pk):
+        live_store.upsert_components(repo_pk, [v1_component(
+            "loan.extend", source_code="def extend(self):\n    self.renewals += 1",
+            signature="extend(self)")], {"loan.extend": emb()})
+        self._downgrade_to_2_0_0(live_store)
+        # 'simple' config keeps 'renewals' unstemmed, so the query stem 'renew' misses
+        assert self._matches(live_store, "renewal") == 0
+
+        live_store.init_schema(FAKE_DIM)
+
+        t = live_store._cfg.table_migrations
+        versions = {r["version"]: r["description"] for r in rows(live_store, f"SELECT * FROM {t}")}
+        assert versions["2.1.0"] == "migrated from 2.0.0"
+        assert self._matches(live_store, "renewal") == 1      # stemmed: renewals -> renew
+        row = rows(live_store, f"SELECT embedding IS NOT NULL AS has FROM {live_store._cfg.table_components}")[0]
+        assert row["has"] is True                             # data and vectors untouched
+
+    def test_migration_is_noop_when_current(self, live_store):
+        live_store.init_schema(FAKE_DIM)
+        t = live_store._cfg.table_migrations
+        assert [r["version"] for r in rows(live_store, f"SELECT version FROM {t}")] == [SCHEMA_VERSION]
+
+    def test_newer_database_refused(self, live_store):
+        with live_store.transaction() as cur:
+            cur.execute(f"UPDATE {live_store._cfg.table_migrations} SET version = '9.0.0'")
+        with pytest.raises(SchemaVersionError, match="newer"):
+            live_store.init_schema(FAKE_DIM)
+
+    def test_camel_case_identifiers_searchable(self, live_store, repo_pk):
+        live_store.upsert_components(repo_pk, [v1_component(
+            "lending.LendingService", ctype="class", source_code="class LendingService:\n    pass",
+            signature=None)])
+        assert self._matches(live_store, "lend") == 1
+
+
+def test_windows_paths_stored_as_posix(live_store, repo_pk):
+    live_store.upsert_components(repo_pk, [v1_component(
+        "pkg.mod.f", relative_path="pkg\mod.py")])
+    t = live_store._cfg.table_components
+    assert rows(live_store, f"SELECT relative_path FROM {t}")[0]["relative_path"] == "pkg/mod.py"
