@@ -11,8 +11,8 @@ requires-python = ">=3.10"
 # The repository root *is* the package; expose it under the import name
 # `traceability` (what the code and tests import) rather than the directory name.
 [tool.setuptools]
-package-dir = { "traceability" = ".", "traceability.tests" = "tests" }
-packages = ["traceability", "traceability.tests"]
+package-dir = { "traceability" = ".", "traceability.tests" = "tests", "traceability.verification" = "verification" }
+packages = ["traceability", "traceability.tests", "traceability.verification"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

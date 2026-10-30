@@ -4,7 +4,11 @@ This package is the integration layer between **SRS Agent** (requirements) and *
 
 It only consumes the outputs of those tools and never imports either one.
 
-Status: **Phases 1–3 are complete:** schema and ingestion, query resolution and retrieval (including the candidate "search agent"), and the deterministic mapping agent. Verification (Phase 4) is not built yet; the verification table already exists for it.
+Status: **Phases 1–4 are implemented:**
+1. schema and ingestion;
+2. query resolution and retrieval, including the candidate "search agent";
+3. the deterministic mapping agent;
+4. the LLM verifier agent (`verification/`).
 
 ## Setup
 
@@ -203,6 +207,61 @@ Rules were chosen by measurement:
 | **Chosen rules** | **0.71** | **0.92** |
 
 Recall was favoured, because the verifier filters out false positives.
+
+## Verification (Phase 4): the "verifier agent"
+
+```powershell
+ollama pull qwen2.5-coder:7b        # default model; override with --model or VERIFIER_MODEL
+& $py -m traceability.cli verify --document-id library-srs-v1.1
+& $py -m traceability.cli evaluate-verification --gold library_traceability_dataset\gold_standard\gold_standard_mapping.json --document-id library-srs-v1.1
+& $py -m traceability.cli show-verification FR-016 --document-id library-srs-v1.1
+```
+
+The `verification/` subpackage is the only stage that calls an LLM, which runs locally through Ollama. For each requirement:
+
+1. **Context.** The mapped components are shown as tagged blocks (`[C1]`, `[C2]`, …), with their **real file line numbers**.
+   - Direct code is shown in full, up to 120 lines.
+   - Supporting functions are shown up to 40 lines.
+   - Supporting classes show only their header.
+   - Docstrings appear explicitly labelled as *documentation, NOT evidence*.
+   - Anything cut for length is listed as omitted and can't be cited.
+
+   A requirement with no mapped code becomes `not_found` without calling the model. That means the pipeline found no candidate, not that the feature is definitely absent.
+2. **Claims** (`claims.py`) are the requirement's own sentences and list items, so nothing is paraphrased or invented. `--claims llm` lets the model split instead, but on a 7B model that invented claims such as "applies the correct interest rate". `--claims gold` verifies the gold standard's claims, to evaluate the verifier in isolation.
+
+   If the text introduces a list that is missing ("…shall reject the book when:"), the requirement is flagged **incomplete**. The SRS Agent drops bullets and tables, and that fragment isn't judged.
+3. **Judgement.** One model call per requirement, with a JSON schema enforced through Ollama's structured output, temperature 0 and a fixed seed. Each claim gets one of:
+   - `supported`, which must cite line ranges **and quote the code**;
+   - `not_supported`;
+   - `insufficient_evidence`.
+4. **Citation validation** (`context.py`). Every citation must name a component that was shown, stay inside its shown lines, and carry a quote whose identifiers and numbers appear in those lines. A "supported" claim with no valid citation is downgraded to `insufficient_evidence`. Support can never come from a docstring, a similarity score, or an invented reference.
+5. **Requirement verdict.**
+   - all claims supported → `supported`;
+   - some supported → `partially_supported`;
+   - none supported, some contradicted → `not_supported_by_candidate`;
+   - otherwise, or on model failure → `insufficient_evidence`.
+
+   A timeout or malformed output is never turned into a positive verdict.
+6. **Persistence.** Verdicts are stored in `tr_verifications`, which is append-only: one requirement-level row with every claim, verdict, citation and rejected citation, plus one row per judged link, along with the model and prompt version. Link statuses change as follows:
+   - a link cited by a supported claim becomes `supported`;
+   - an uncited direct link becomes `not_supported_by_candidate`;
+   - uncited supporting links stay `pending_verification`, because they were context.
+
+**Model:** `qwen2.5-coder:7b`.
+- It fits a 6 GB GPU with an 8k context.
+- It's strong at reading code and following schemas.
+- It's a different model from DocAgent's docstring writer, so the verifier doesn't share its blind spots.
+
+**Results on the library dataset** (prompt v2.1, 36 requirements with an expected verdict):
+
+| Mode | False-support rate | Exact accuracy | Implemented recall | Claim accuracy | Citation validity |
+|---|---|---|---|---|---|
+| claims from the requirement text (end to end) | **0.000** | 0.861 | 0.933 | — | 0.984 |
+| gold claims (verifier in isolation) | **0.000** | 0.917 | 0.933 | 0.913 | 0.978 |
+
+- **No unmet requirement or claim was ever declared supported**, and every claim-level error was a conservative one.
+- **Re-anchoring off-by-one citations to their quoted code** raised gold-claims exact accuracy from 0.722 to 0.917.
+- **The remaining errors come mostly from upstream:** two requirements whose code was never mapped (FR-001, FR-034), and the SRS Agent dropping lists and tables. See `TEST_RUN1_LIBRARY_RESULTS.md`, Part C, in the parent folder.
 
 ## Design
 
