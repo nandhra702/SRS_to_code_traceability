@@ -288,7 +288,7 @@ def cmd_verify(args: argparse.Namespace, cfg: TraceabilityConfig):
                        for r in load_gold(args.gold)["requirements"] if r.get("claims")}
     ids = [i.strip() for i in args.requirements.split(",")] if args.requirements else None
     llm = OllamaClient(args.model)
-    vc = VerifierConfig(claim_splitting="llm" if args.claims == "llm" else "rules")
+    vc = VerifierConfig(claim_splitting=args.claims if args.claims != "gold" else "rules")
 
     def progress(i, n, r):
         print(f"[{i}/{n}] {r['requirement_id']:10s} {r['status']}", file=sys.stderr, flush=True)
@@ -458,9 +458,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_ver.add_argument("--document-id", required=True)
     p_ver.add_argument("--model", default=None, help="Ollama model (default: $VERIFIER_MODEL or qwen2.5-coder:7b).")
     p_ver.add_argument("--requirements", default=None, help="Comma-separated IDs (default: all).")
-    p_ver.add_argument("--claims", default="rules", choices=["rules", "llm", "gold"],
-                       help="rules: the requirement's own sentences (default); llm: model-split; "
-                            "gold: the gold standard's claims (evaluation).")
+    p_ver.add_argument("--claims", default="clauses", choices=["clauses", "rules", "llm", "gold"],
+                       help="clauses: the requirement's own sentences/list items, compound ones split into "
+                            "validated clauses (default); rules: sentences/list items only; llm: model-split "
+                            "(can invent); gold: the gold standard's claims (evaluation).")
     p_ver.add_argument("--gold", default=None, help="Gold mapping, for --claims gold.")
     p_ver.add_argument("--mapping-version", default="mapping-v1")
     p_ver.add_argument("--pipeline-version", default="verification-v1")

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-PROMPT_VERSION = "verify-v2.1"  # v2.1: citations re-anchored to their quote (validation only)
+PROMPT_VERSION = "verify-v2.2"  # v2.2: compound claims split into validated clauses
 
 # ---------------------------------------------------------------------------
 # Step 1: split a requirement into atomic claims
@@ -103,3 +103,29 @@ def verify_prompt(req: Dict[str, Any], claims: List[str], context_text: str) -> 
         'Return JSON: {"claims": [{"claim_index": 1, "verdict": "...", "evidence": '
         '[{"component": "C1", "start_line": 0, "end_line": 0, "quote": "..."}], "rationale": "..."}], "summary": "..."}'
     )
+
+
+# ---------------------------------------------------------------------------
+# Clause splitting of one compound claim (validated by claims.validate_split)
+# ---------------------------------------------------------------------------
+
+SPLIT_SYSTEM = """You split ONE requirement sentence into its separate parts, so each part can be checked on its own.
+
+Rules:
+- Split only where the sentence combines separate behaviours or separate conditions (joined by "and", "or", "as well as", "in addition to", "also").
+- Do NOT split a simple list of attributes or values that describe one behaviour (e.g. "title, author and year").
+- Each part MUST be a complete sentence with its own subject and its own "shall"/"must" verb. Repeat the subject, the verb and any leading condition ("When a member pays a fine, ...") in every part.
+- Copy the sentence's own words otherwise.
+- Never split alternatives inside one condition or value ("10 or 13 characters", "PDF or DOCX").
+- Never add, explain, or rephrase anything. Keep every number and value exactly.
+- If the sentence is a single behaviour, return it unchanged as the only part."""
+
+SPLIT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "properties": {"parts": {"type": "array", "items": {"type": "string"}, "minItems": 1, "maxItems": 6}},
+    "required": ["parts"],
+}
+
+
+def split_prompt(sentence: str) -> str:
+    return f'Sentence: {sentence}\nReturn JSON: {{"parts": ["...", "..."]}}'

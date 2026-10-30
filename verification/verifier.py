@@ -33,11 +33,11 @@ from typing import Any, Dict, List, Optional, Sequence
 
 from ..query import QueryResolver
 from ..store import Store
-from .claims import split_claims
+from .claims import COMPOUND_CUE, split_claims, validate_split
 from .context import EvidenceContext, build_context, validate_reference
 from .llm import LLMClient, LLMError
-from .prompts import (CLAIMS_SCHEMA, CLAIMS_SYSTEM, PROMPT_VERSION, VERIFY_SCHEMA, VERIFY_SYSTEM,
-                      claims_prompt, verify_prompt)
+from .prompts import (CLAIMS_SCHEMA, CLAIMS_SYSTEM, PROMPT_VERSION, SPLIT_SCHEMA, SPLIT_SYSTEM,
+                      VERIFY_SCHEMA, VERIFY_SYSTEM, claims_prompt, split_prompt, verify_prompt)
 
 logger = logging.getLogger(__name__)
 
@@ -53,9 +53,12 @@ class VerifierConfig:
     max_lines_direct: int = 120
     max_lines_supporting: int = 40
     max_claims: int = 8
-    # "rules": the requirement's own sentences/list items (claims.py) — nothing
-    # can be invented.  "llm": ask the model to split (may paraphrase/invent).
-    claim_splitting: str = "rules"
+    # "clauses" (default): the requirement's own sentences/list items, and
+    #   compound ones split into clauses by the model — accepted only when the
+    #   split adds no content word and drops no value (claims.validate_split).
+    # "rules": sentences/list items only, no model call.
+    # "llm": the model splits freely (can paraphrase or invent; not recommended).
+    claim_splitting: str = "clauses"
 
 
 def aggregate(verdicts: Sequence[str]) -> str:
@@ -128,6 +131,7 @@ class Verifier:
         base = {"requirement_id": req["requirement_id"], "req_pk": req["req_pk"]}
         self._summary = ""
         self._incomplete = False
+        self._split_log = []
         if not links:
             row = {"req_pk": req["req_pk"], "status": "not_found",
                    "rationale": "The mapping stage proposed no code for this requirement.",
@@ -158,7 +162,8 @@ class Verifier:
                "evidence_refs": refs}
         self._persist(row, link_rows, pipeline_version)
         return {**base, "status": status, "claims": judged, "error": error,
-                "omitted_components": ctx.omitted, "incomplete_requirement_text": self._incomplete}
+                "omitted_components": ctx.omitted, "incomplete_requirement_text": self._incomplete,
+                "claim_splits": list(self._split_log)}
 
     # ------------------------------------------------------------------
     # Steps
@@ -166,10 +171,13 @@ class Verifier:
 
     def _split_claims(self, req: Dict[str, Any]) -> List[Dict[str, Any]]:
         self._incomplete = False
-        if self.config.claim_splitting == "rules":
+        self._split_log = []
+        if self.config.claim_splitting in ("rules", "clauses"):
             texts, self._incomplete = split_claims(req["raw_text"], req.get("title"),
                                                    self.config.max_claims)
             source = "requirement_text"
+            if self.config.claim_splitting == "clauses":
+                texts = self._split_compound(texts, req["raw_text"])
         else:
             reply = self._llm.chat_json(CLAIMS_SYSTEM, claims_prompt(req), CLAIMS_SCHEMA)
             texts = [str(c).strip() for c in reply.get("claims", []) if str(c).strip()]
@@ -179,6 +187,36 @@ class Verifier:
                 texts, source = [req["raw_text"]], "requirement_text"
         return [{"claim_id": f"{req['requirement_id']}.c{i}", "text": t, "source": source}
                 for i, t in enumerate(texts, start=1)]
+
+    def _split_compound(self, texts: List[str], requirement_text: str) -> List[str]:
+        """
+        Split claims that combine several behaviours/conditions into clauses.
+        The model only proposes; validate_split rejects any split that adds a
+        content word not in the requirement or drops a value, and the original
+        claim is kept.  Model failures also keep the original claim.
+        """
+        out: List[str] = []
+        for text in texts:
+            if not COMPOUND_CUE.search(text) or len(out) >= self.config.max_claims:
+                out.append(text)
+                continue
+            try:
+                reply = self._llm.chat_json(SPLIT_SYSTEM, split_prompt(text), SPLIT_SCHEMA)
+                parts = [str(p).strip() for p in reply.get("parts", []) if str(p).strip()]
+            except LLMError as exc:
+                parts, reason = [], f"model failure: {exc}"
+            else:
+                reason = validate_split(text, parts, context=requirement_text)
+            if reason is None:
+                out.extend(list(dict.fromkeys(parts)))
+                self._split_log.append({"claim": text, "parts": parts})
+            else:
+                out.append(text)
+                if parts and reason != "not split":
+                    self._split_log.append({"claim": text, "rejected_split": parts, "reason": reason})
+        if len(out) > self.config.max_claims:
+            out = out[: self.config.max_claims - 1] + [" ".join(out[self.config.max_claims - 1:])]
+        return out
 
     def _judge(self, req: Dict[str, Any], claims: List[Dict[str, Any]],
                ctx: EvidenceContext) -> List[Dict[str, Any]]:
@@ -227,6 +265,7 @@ class Verifier:
 
     _summary = ""
     _incomplete = False
+    _split_log: List[Dict[str, Any]] = []
 
     def _context(self, links: List[Dict[str, Any]]) -> EvidenceContext:
         cfg = self._store._cfg

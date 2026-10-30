@@ -342,3 +342,94 @@ def test_cli_verify_evaluate_and_show(world, capsys):
         assert cli.main(["show-verification", "FR-022", "--document-id", "d"]) == 0
         out = capsys.readouterr().out
         assert "partially_supported" in out and "cites fines.calculate_fine" in out
+
+
+# ============================================================================
+# Clause splitting of compound claims (v2.2)
+# ============================================================================
+
+from traceability.verification.claims import validate_split
+from traceability.verification.verifier import VerifierConfig
+
+COMPOUND = "A loan shall be renewed only when it has been renewed fewer than 2 times and the member has no fines."
+GOOD_SPLIT = ["A loan shall be renewed only when it has been renewed fewer than 2 times.",
+              "A loan shall be renewed only when the member has no fines."]
+
+
+@pytest.mark.parametrize("parts, reason", [
+    (GOOD_SPLIT, None),
+    ([COMPOUND], "not split"),
+    (GOOD_SPLIT[:1] + ["A loan shall be renewed only when the member has paid interest."], "adds words"),
+    (["A loan shall be renewed only when it has been renewed fewer times.", GOOD_SPLIT[1]], "drops values"),
+    ([GOOD_SPLIT[0], "and the member has no fines."], "not a complete requirement sentence"),
+])
+def test_validate_split(parts, reason):
+    result = validate_split(COMPOUND, parts)
+    assert (result is None) if reason is None else (reason in result)
+
+
+def test_alternatives_are_never_split():
+    claim = "The system shall reject the book when the ISBN does not contain exactly 10 or 13 characters."
+    parts = [claim.replace("10 or 13", "10"), claim.replace("10 or 13", "13")]
+    assert "alternative" in validate_split(claim, parts)
+
+
+def test_repeated_condition_from_elsewhere_in_the_requirement_is_allowed():
+    context = "When a member pays a fine, the system shall return the balance and shall record the payment."
+    claim = "the system shall return the balance and shall record the payment."
+    parts = ["When a member pays a fine, the system shall return the balance.",
+             "When a member pays a fine, the system shall record the payment."]
+    assert validate_split(claim, parts, context=context) is None
+
+
+@pytest.fixture()
+def compound_world(world):
+    s, res, reqs = world
+    from traceability.tests.conftest import requirement as req_rec
+    doc = res.document_pk("d")
+    pk = s.upsert_requirements(doc, [req_rec("FR-034", raw_text="FR-034 — Renew " + COMPOUND, title="Renew")])["FR-034"]
+    comp = s.get_trace_links(pipeline_version="mapping-v1")[0]["comp_pk"]
+    s.upsert_trace_links([{"link_type": "requirement_to_component", "req_pk": pk, "comp_pk": comp,
+                           "status": "pending_verification", "evidence": {"role": "direct", "rank": 1},
+                           "pipeline_version": "mapping-v1"}])
+    return s, res
+
+
+@requires_pg
+def test_clauses_mode_splits_compound_claim_and_detects_partial(compound_world):
+    s, res = compound_world
+    llm = FakeLLM([{"parts": GOOD_SPLIT},
+                   judgement(("supported", [cite("C1", 7, 8, "if late <= 2:")]), ("not_supported", []))])
+    r = Verifier(s, res, llm, VerifierConfig(claim_splitting="clauses")).run("d", requirement_ids=["FR-034"])
+    r = r["per_requirement"][0]
+    assert [c["text"] for c in r["claims"]] == GOOD_SPLIT
+    assert r["status"] == "partially_supported"
+    assert r["claim_splits"][0]["parts"] == GOOD_SPLIT
+
+
+@requires_pg
+def test_clauses_mode_keeps_original_when_split_is_unfaithful(compound_world):
+    s, res = compound_world
+    bad = [GOOD_SPLIT[0], "A loan shall be renewed only when interest is paid."]
+    llm = FakeLLM([{"parts": bad}, judgement(("not_supported", []))])
+    r = Verifier(s, res, llm, VerifierConfig(claim_splitting="clauses")).run("d", requirement_ids=["FR-034"])
+    r = r["per_requirement"][0]
+    assert [c["text"] for c in r["claims"]] == [COMPOUND]
+    assert "adds words" in r["claim_splits"][0]["reason"]
+
+
+@requires_pg
+def test_clauses_mode_survives_split_failure(compound_world):
+    s, res = compound_world
+    llm = FakeLLM([LLMError("timeout"), judgement(("not_supported", []))])
+    r = Verifier(s, res, llm, VerifierConfig(claim_splitting="clauses")).run("d", requirement_ids=["FR-034"])
+    assert [c["text"] for c in r["per_requirement"][0]["claims"]] == [COMPOUND]
+    assert r["per_requirement"][0]["error"] is None
+
+
+@requires_pg
+def test_rules_mode_makes_no_split_call(compound_world):
+    s, res = compound_world
+    llm = FakeLLM([judgement(("not_supported", []))])
+    Verifier(s, res, llm, VerifierConfig(claim_splitting="rules")).run("d", requirement_ids=["FR-034"])
+    assert len(llm.prompts) == 1

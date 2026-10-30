@@ -227,7 +227,17 @@ The `verification/` subpackage is the only stage that calls an LLM, which runs l
    - Anything cut for length is listed as omitted and can't be cited.
 
    A requirement with no mapped code becomes `not_found` without calling the model. That means the pipeline found no candidate, not that the feature is definitely absent.
-2. **Claims** (`claims.py`) are the requirement's own sentences and list items, so nothing is paraphrased or invented. `--claims llm` lets the model split instead, but on a 7B model that invented claims such as "applies the correct interest rate". `--claims gold` verifies the gold standard's claims, to evaluate the verifier in isolation.
+2. **Claims** (`claims.py`) start as the requirement's own sentences and list items.
+   - **`--claims clauses` (default).** A compound sentence ("…fewer than 2 times **and** the member has no outstanding fines") is split into separate clauses, so partly-implemented requirements can be detected. The model only *proposes* the split; it's accepted only if mechanical checks pass:
+     - every content word already occurs in the requirement;
+     - no number is dropped;
+     - alternatives such as "10 **or** 13 characters" stay in one part;
+     - every part is a complete "shall/must" sentence.
+
+     Otherwise the original claim is kept, and the rejected split is logged with its reason.
+   - **`--claims rules`:** sentences and list items only, with no model call.
+   - **`--claims llm`:** the model splits freely. On a 7B model this invented claims such as "applies the correct interest rate", so it isn't recommended.
+   - **`--claims gold`:** verifies the gold standard's own claims, to evaluate the verifier in isolation.
 
    If the text introduces a list that is missing ("…shall reject the book when:"), the requirement is flagged **incomplete**. The SRS Agent drops bullets and tables, and that fragment isn't judged.
 3. **Judgement.** One model call per requirement, with a JSON schema enforced through Ollama's structured output, temperature 0 and a fixed seed. Each claim gets one of:
