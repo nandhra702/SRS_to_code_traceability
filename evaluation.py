@@ -306,6 +306,109 @@ class Evaluator:
             "per_requirement": details,
         }
 
+    def evaluate_verification(
+        self,
+        gold: Dict[str, Any],
+        *,
+        document_id: str,
+        pipeline_version: str,
+    ) -> Dict[str, Any]:
+        """
+        Score the latest stored verification of each gold requirement.
+
+        Expected verdicts:
+            implemented      -> supported
+            partial          -> partially_supported
+            not_implemented  -> not_supported_by_candidate or not_found
+            cross_cutting    -> reported only (no single right answer)
+
+        Key numbers:
+            exact_accuracy       verdict equals the expected verdict
+            false_support_rate   share of partial / not_implemented requirements
+                                 declared 'supported' (the dangerous error)
+            implemented_recall   share of implemented requirements declared 'supported'
+            citation_validity    share of model citations that passed validation
+            citation_on_gold     share of valid citations (on supported claims of
+                                 implemented requirements) that point at a component
+                                 the gold links to the requirement
+            claim_accuracy       when gold claims were verified: claim verdicts
+                                 agreeing with gold (supported vs not)
+        """
+        store = self._resolver._store
+        doc_pk = self._resolver.document_pk(document_id)
+        latest = store.latest_verifications(document_pk=doc_pk, pipeline_version=pipeline_version)
+        ingested_ids = {r["requirement_id"] for r in self._resolver._requirements(
+            "r.document_pk = %(doc)s", {"doc": doc_pk})}
+        expected = {"implemented": {"supported"}, "partial": {"partially_supported"},
+                    "not_implemented": {"not_supported_by_candidate", "not_found"}}
+
+        confusion: Dict[str, Dict[str, int]] = {}
+        details, exact, judged = [], 0, 0
+        unsafe = unsafe_total = impl_ok = impl_total = 0
+        refs_ok = refs_bad = on_gold = on_gold_total = 0
+        claim_ok = claim_total = incomplete = 0
+        gold_claims = {c["claim_id"]: c for r in gold["requirements"] for c in r.get("claims", [])}
+        for req in gold["requirements"]:
+            rid = req["requirement_id"]
+            matched = rid if rid in ingested_ids else self._best_text_match(req["text"], document_id)
+            row = latest.get(matched) if matched else None
+            predicted = row["status"] if row else "unverified"
+            confusion.setdefault(req["status"], {}).setdefault(predicted, 0)
+            confusion[req["status"]][predicted] += 1
+            claims = (row or {}).get("claims") or []
+            for c in claims:
+                refs_ok += len(c.get("evidence") or [])
+                refs_bad += len(c.get("rejected_evidence") or [])
+            if row and "incomplete" in (row.get("rationale") or ""):
+                incomplete += 1
+            if req["status"] in expected:
+                judged += 1
+                exact += predicted in expected[req["status"]]
+            if req["status"] in ("partial", "not_implemented"):
+                unsafe_total += 1
+                unsafe += predicted == "supported"
+            if req["status"] == "implemented":
+                impl_total += 1
+                impl_ok += predicted == "supported"
+                gold_comps = {l["component_id"] for l in req["links"]}
+                for c in claims:
+                    if c.get("verdict") == "supported":
+                        for e in c.get("evidence") or []:
+                            on_gold_total += 1
+                            on_gold += e.get("component_id") in gold_comps
+            for c in claims:
+                g = gold_claims.get(c.get("claim_id"))
+                if g:
+                    claim_total += 1
+                    claim_ok += (c.get("verdict") == "supported") == (g["verdict"] == "supported")
+            details.append({"requirement_id": rid, "gold_status": req["status"], "matched_to": matched,
+                            "predicted": predicted,
+                            "correct": predicted in expected[req["status"]] if req["status"] in expected else None,
+                            "claims": [(c.get("claim_id"), c.get("verdict")) for c in claims]})
+
+        def ratio(a, b):
+            return round(a / b, 4) if b else None
+
+        return {
+            "dataset": gold.get("dataset"), "document_id": document_id,
+            "pipeline_version": pipeline_version,
+            "requirements_judged": judged,
+            "scores": {
+                "exact_accuracy": ratio(exact, judged),
+                "false_support_rate": ratio(unsafe, unsafe_total),
+                "implemented_recall": ratio(impl_ok, impl_total),
+                "citation_validity": ratio(refs_ok, refs_ok + refs_bad),
+                "citation_on_gold": ratio(on_gold, on_gold_total),
+                "claim_accuracy": ratio(claim_ok, claim_total),
+            },
+            "counts": {"false_support": unsafe, "partial_or_not_implemented": unsafe_total,
+                       "implemented_supported": impl_ok, "implemented": impl_total,
+                       "citations_valid": refs_ok, "citations_rejected": refs_bad,
+                       "gold_claims_compared": claim_total, "incomplete_requirement_text": incomplete},
+            "confusion": confusion,
+            "per_requirement": details,
+        }
+
     # ------------------------------------------------------------------
 
     def _repo_components(self, repo_pk: int) -> set:

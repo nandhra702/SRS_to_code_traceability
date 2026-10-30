@@ -688,6 +688,52 @@ class Store:
             return [dict(r) for r in cur.fetchall()]
 
     # ------------------------------------------------------------------
+    # Verification (append-only history)
+    # ------------------------------------------------------------------
+
+    def add_verification(self, record: Dict[str, Any]) -> int:
+        """Append one verification row (never updates earlier rows)."""
+        t = self._cfg.table_verifications
+        sql = f"""
+            INSERT INTO {t} (link_pk, req_pk, status, rationale, claims, evidence_refs,
+                             model, prompt_version, pipeline_version)
+            VALUES (%(link_pk)s, %(req_pk)s, %(status)s, %(rationale)s, %(claims)s,
+                    %(evidence_refs)s, %(model)s, %(prompt_version)s, %(pipeline_version)s)
+            RETURNING verification_pk;
+        """
+        with self.transaction() as cur:
+            cur.execute(sql, {
+                "link_pk": record.get("link_pk"), "req_pk": record.get("req_pk"),
+                "status": record["status"], "rationale": record.get("rationale"),
+                "claims": self._jsonb(record.get("claims") or []),
+                "evidence_refs": self._jsonb(record.get("evidence_refs") or []),
+                "model": record.get("model"), "prompt_version": record.get("prompt_version"),
+                "pipeline_version": record["pipeline_version"],
+            })
+            return cur.fetchone()["verification_pk"]
+
+    def set_link_status(self, link_pk: int, status: str) -> None:
+        """Record a verdict on a trace link (the verification row holds the why)."""
+        t = self._cfg.table_trace_links
+        with self.transaction() as cur:
+            cur.execute(f"UPDATE {t} SET status = %s, updated_at = NOW() WHERE link_pk = %s;",
+                        (status, link_pk))
+
+    def latest_verifications(
+        self, *, document_pk: int, pipeline_version: str
+    ) -> Dict[str, Dict[str, Any]]:
+        """{requirement_id: latest requirement-level verification row} for a document."""
+        cfg = self._cfg
+        sql = (f"SELECT DISTINCT ON (v.req_pk) v.*, r.requirement_id "
+               f"FROM {cfg.table_verifications} v "
+               f"JOIN {cfg.table_requirements} r ON r.req_pk = v.req_pk "
+               f"WHERE v.link_pk IS NULL AND r.document_pk = %s AND v.pipeline_version = %s "
+               f"ORDER BY v.req_pk, v.created_at DESC, v.verification_pk DESC;")
+        with self.transaction() as cur:
+            cur.execute(sql, (document_pk, pipeline_version))
+            return {r["requirement_id"]: dict(r) for r in cur.fetchall()}
+
+    # ------------------------------------------------------------------
     # Embedding maintenance (rebuild-embeddings)
     # ------------------------------------------------------------------
 

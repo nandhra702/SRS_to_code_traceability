@@ -15,6 +15,9 @@ evaluate-candidates    Score stored candidates against a gold-standard mapping (
 map-requirements       Mapping agent: direct + supporting links per requirement (pending verification).
 evaluate-mapping       Score stored mapping links against a gold-standard mapping (v2).
 show-mapping           Show one requirement's mapped subgraph (components + edges).
+verify                 Verifier agent (LLM): claim-level, line-cited verdicts per requirement.
+evaluate-verification  Score stored verifications against a gold-standard mapping (v2).
+show-verification      Show one requirement's latest verdict, claims and citations.
 
 Each ingest prints a JSON report (counts, skipped/truncated texts, skipped
 relationships) to stdout; progress logs go to stderr.
@@ -271,6 +274,98 @@ def cmd_show_mapping(args: argparse.Namespace, cfg: TraceabilityConfig):
     return "\n".join(lines)
 
 
+def cmd_verify(args: argparse.Namespace, cfg: TraceabilityConfig):
+    from .query import QueryResolver
+    from .verification import OllamaClient, Verifier, VerifierConfig
+
+    gold_claims = None
+    if args.claims == "gold":
+        from .evaluation import load_gold
+        if not args.gold:
+            raise ValueError("--claims gold needs --gold PATH")
+        gold_claims = {r["requirement_id"]: [{"claim_id": c["claim_id"], "text": c["text"], "source": "gold"}
+                                             for c in r["claims"]]
+                       for r in load_gold(args.gold)["requirements"] if r.get("claims")}
+    ids = [i.strip() for i in args.requirements.split(",")] if args.requirements else None
+    llm = OllamaClient(args.model)
+    vc = VerifierConfig(claim_splitting="llm" if args.claims == "llm" else "rules")
+
+    def progress(i, n, r):
+        print(f"[{i}/{n}] {r['requirement_id']:10s} {r['status']}", file=sys.stderr, flush=True)
+
+    with Store(cfg) as store:
+        report = Verifier(store, QueryResolver(store), llm, vc).run(
+            args.document_id, requirement_ids=ids, gold_claims=gold_claims,
+            mapping_version=args.mapping_version, pipeline_version=args.pipeline_version,
+            progress=progress)
+    if args.json:
+        return report
+    lines = [f"Verified {report['requirements']} requirement(s) of {report['document_id']} with "
+             f"{report['model']} ({report['prompt_version']}, claims: {report['claims_source']})",
+             "  " + ", ".join(f"{k}={v}" for k, v in sorted(report["status_counts"].items())), ""]
+    for r in report["per_requirement"]:
+        flags = " [incomplete requirement text]" if r.get("incomplete_requirement_text") else ""
+        flags += f" [error: {r['error']}]" if r.get("error") else ""
+        lines.append(f"{r['requirement_id']:10s} {r['status']}{flags}")
+    return "\n".join(lines)
+
+
+def cmd_evaluate_verification(args: argparse.Namespace, cfg: TraceabilityConfig):
+    from .evaluation import Evaluator, load_gold
+    from .query import QueryResolver
+
+    with Store(cfg) as store:
+        report = Evaluator(QueryResolver(store), None).evaluate_verification(
+            load_gold(args.gold), document_id=args.document_id, pipeline_version=args.pipeline_version)
+    if args.out:
+        with open(args.out, "w", encoding="utf-8") as fh:
+            json.dump(report, fh, indent=2, default=str)
+    s, c = report["scores"], report["counts"]
+    fmt = lambda v: "n/a" if v is None else f"{v:.3f}"
+    lines = [f"Verification {report['pipeline_version']} for {report['document_id']}: "
+             f"{report['requirements_judged']} gold requirements with an expected verdict", "",
+             f"  exact accuracy        {fmt(s['exact_accuracy'])}",
+             f"  false-support rate    {fmt(s['false_support_rate'])}  "
+             f"({c['false_support']} of {c['partial_or_not_implemented']} partial/not-implemented declared supported)",
+             f"  implemented recall    {fmt(s['implemented_recall'])}  "
+             f"({c['implemented_supported']} of {c['implemented']} implemented declared supported)",
+             f"  citation validity     {fmt(s['citation_validity'])}  "
+             f"({c['citations_valid']} valid, {c['citations_rejected']} rejected)",
+             f"  citations on gold code {fmt(s['citation_on_gold'])}",
+             f"  claim accuracy        {fmt(s['claim_accuracy'])}  ({c['gold_claims_compared']} gold claims compared)",
+             "", "  gold status -> predicted verdicts:"]
+    for gold_status, preds in report["confusion"].items():
+        lines.append(f"    {gold_status:16s} " + ", ".join(f"{k}={v}" for k, v in sorted(preds.items())))
+    wrong = [f"{d['requirement_id']}({d['gold_status']}->{d['predicted']})"
+             for d in report["per_requirement"] if d["correct"] is False]
+    lines.append(f"\n  disagreements: {', '.join(wrong) or 'none'}")
+    return "\n".join(lines)
+
+
+def cmd_show_verification(args: argparse.Namespace, cfg: TraceabilityConfig):
+    from .query import QueryResolver
+
+    with Store(cfg) as store:
+        doc_pk = QueryResolver(store).document_pk(args.document_id)
+        row = store.latest_verifications(document_pk=doc_pk, pipeline_version=args.pipeline_version) \
+            .get(args.requirement_id)
+    if row is None:
+        raise ValueError(f"No {args.pipeline_version} verification for {args.requirement_id}.")
+    if args.json:
+        return row
+    lines = [f"{args.requirement_id}: {row['status']}  ({row['model']}, {row['prompt_version']}, "
+             f"{row['created_at']:%Y-%m-%d %H:%M})", f"  {row['rationale']}", ""]
+    for c in row["claims"]:
+        lines.append(f"  [{c['verdict']}] {c['text']}")
+        for e in c.get("evidence") or []:
+            lines.append(f"      cites {_short(e['component_id'])} {e['path']}:{e['start_line']}-{e['end_line']}"
+                         + (f"  \"{e['quote'][:60]}\"" if e.get("quote") else ""))
+        for r in c.get("rejected_evidence") or []:
+            lines.append(f"      REJECTED citation: {r['reason']}")
+        lines.append(f"      why: {c.get('rationale', '')}")
+    return "\n".join(lines)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m traceability.cli",
@@ -358,6 +453,30 @@ def build_parser() -> argparse.ArgumentParser:
     p_show.add_argument("--document-id", required=True)
     p_show.add_argument("--pipeline-version", default="mapping-v1")
     p_show.add_argument("--json", action="store_true")
+
+    p_ver = sub.add_parser("verify", help="Verifier agent: check mapped code against each requirement (LLM).")
+    p_ver.add_argument("--document-id", required=True)
+    p_ver.add_argument("--model", default=None, help="Ollama model (default: $VERIFIER_MODEL or qwen2.5-coder:7b).")
+    p_ver.add_argument("--requirements", default=None, help="Comma-separated IDs (default: all).")
+    p_ver.add_argument("--claims", default="rules", choices=["rules", "llm", "gold"],
+                       help="rules: the requirement's own sentences (default); llm: model-split; "
+                            "gold: the gold standard's claims (evaluation).")
+    p_ver.add_argument("--gold", default=None, help="Gold mapping, for --claims gold.")
+    p_ver.add_argument("--mapping-version", default="mapping-v1")
+    p_ver.add_argument("--pipeline-version", default="verification-v1")
+    p_ver.add_argument("--json", action="store_true")
+
+    p_ev = sub.add_parser("evaluate-verification", help="Score stored verifications against a gold mapping (v2).")
+    p_ev.add_argument("--gold", required=True)
+    p_ev.add_argument("--document-id", required=True)
+    p_ev.add_argument("--pipeline-version", default="verification-v1")
+    p_ev.add_argument("--out", default=None)
+
+    p_sv = sub.add_parser("show-verification", help="Show one requirement's latest verdict with its claims and citations.")
+    p_sv.add_argument("requirement_id")
+    p_sv.add_argument("--document-id", required=True)
+    p_sv.add_argument("--pipeline-version", default="verification-v1")
+    p_sv.add_argument("--json", action="store_true")
     return parser
 
 
@@ -374,6 +493,9 @@ _DISPATCH = {
     "map-requirements":     cmd_map_requirements,
     "evaluate-mapping":     cmd_evaluate_mapping,
     "show-mapping":         cmd_show_mapping,
+    "verify":               cmd_verify,
+    "evaluate-verification": cmd_evaluate_verification,
+    "show-verification":    cmd_show_verification,
 }
 
 
