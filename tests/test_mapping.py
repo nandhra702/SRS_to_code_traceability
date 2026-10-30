@@ -162,6 +162,29 @@ def test_expansion_can_require_candidates_and_skip_source_references():
     assert set(no_refs) == {1, 3}                            # contains + DocAgent 'calls' only
 
 
+def test_constructor_of_a_direct_methods_class_is_supporting_and_comes_first():
+    comps = {
+        1: {"component_id": "cat.Catalog", "component_type": "class", "relative_path": "cat.py",
+            "start_line": 1, "end_line": 9, "source_code": "class Catalog:\n    pass"},
+        2: {"component_id": "cat.Catalog.__init__", "component_type": "method", "relative_path": "cat.py",
+            "start_line": 2, "end_line": 3, "source_code": "def __init__(self):\n    self._books = {}"},
+        3: {"component_id": "cat.Catalog.all_books", "component_type": "method", "relative_path": "cat.py",
+            "start_line": 5, "end_line": 6, "source_code": "def all_books(self):\n    return list(self._books)"},
+        4: {"component_id": "rep.summary", "component_type": "function", "relative_path": "rep.py",
+            "start_line": 1, "end_line": 2, "source_code": "def summary(c):\n    return c.all_books()"},
+    }
+    g = RepoGraph(comps, [(1, 2, "contains"), (1, 3, "contains")], {})
+    direct = [Candidate(3, "cat.Catalog.all_books", "method", 1)]
+    cands = direct + [Candidate(4, "rep.summary", "function", 2)]
+    sup = expand_supporting(direct, cands, g, MappingConfig(max_supporting=1))
+    assert list(sup) == [2]                                   # constructor wins the single slot
+    assert "constructor of the class" in sup[2][0]["reason"]
+    # a direct __init__ is never added as its own supporting link
+    sup = expand_supporting([Candidate(2, "cat.Catalog.__init__", "method", 1)],
+                            [Candidate(2, "cat.Catalog.__init__", "method", 1)], g, MappingConfig())
+    assert 2 not in sup
+
+
 def test_cycles_do_not_loop():
     g = RepoGraph({1: {"component_id": "m.a", "component_type": "function", "relative_path": "m.py",
                        "start_line": 1, "end_line": 2, "source_code": "def a():\n    return b()"},
