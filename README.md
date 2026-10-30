@@ -174,7 +174,7 @@ Best code similarity differs between groups on average, but the ranges overlap, 
 
 | Source | Edges used |
 |---|---|
-| `docagent` | DocAgent's typed edges: the containing class, `calls`, `instantiates` (plus the instantiated class's `__init__`), and callers. |
+| `docagent` | DocAgent's typed edges: the containing class, `calls`, `instantiates` (plus the instantiated class's `__init__`), and callers. The **constructor of a direct method's class** is always included, ahead of every other supporting link, because it defines the state the method relies on ("the catalog starts empty"). |
 | `source` | Call sites in the direct component's own code, e.g. `member.can_borrow()` on line 24 → `Member.can_borrow`. A name is resolved only if it's unique in the repo, or unique among the requirement's candidates; ambiguous names are skipped. |
 
 DocAgent can't resolve calls on variables, so the `source` evidence matters: it raises supporting recall from 0.41 to 0.76.

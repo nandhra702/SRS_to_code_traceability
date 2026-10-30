@@ -265,6 +265,7 @@ def expand_supporting(direct: List[Candidate], cands: List[Candidate], graph: Re
     cand_rank = {c.comp_pk: c.rank for c in cands}
     direct_pks = {c.comp_pk for c in direct}
     found: Dict[int, List[Dict[str, Any]]] = {}
+    constructors: Set[int] = set()
 
     def cid(pk):
         return graph.components[pk]["component_id"]
@@ -282,6 +283,14 @@ def expand_supporting(direct: List[Candidate], cands: List[Candidate], graph: Re
         parent = graph.parent_class(pk)
         if parent is not None:
             add(parent, {"source": "docagent", "type": "contains", "from": cid(parent), "to": cid(pk)})
+            # The class constructor sets up the state every method relies on
+            # (e.g. "the catalog starts empty"), so it is context for any
+            # direct method of that class.
+            init = graph.init_of(parent)
+            if init is not None and init != pk:
+                add(init, {"source": "docagent", "type": "contains", "from": cid(parent), "to": cid(init),
+                           "reason": f"constructor of the class of direct {cid(pk)}"})
+                constructors.add(init)
         for tgt, rtype in graph.out_edges.get(pk, []):
             if rtype in ("calls", "instantiates"):
                 add(tgt, {"source": "docagent", "type": rtype, "from": cid(pk), "to": cid(tgt)})
@@ -311,9 +320,11 @@ def expand_supporting(direct: List[Candidate], cands: List[Candidate], graph: Re
                                             "path": graph.components[other.comp_pk]["relative_path"]})
 
     if cfg.expand_requires_candidate:
-        found = {pk: e for pk, e in found.items() if pk in cand_rank}
-    ordered = sorted(found, key=lambda pk: (pk not in cand_rank, cand_rank.get(pk, 10**6),
-                                            -len(found[pk]), cid(pk)))
+        found = {pk: e for pk, e in found.items() if pk in cand_rank or pk in constructors}
+    # Constructors of direct methods' classes come first (they are small and
+    # define the starting state), then candidates by rank, then the rest.
+    ordered = sorted(found, key=lambda pk: (pk not in constructors, pk not in cand_rank,
+                                            cand_rank.get(pk, 10**6), -len(found[pk]), cid(pk)))
     return {pk: found[pk] for pk in ordered[:cfg.max_supporting]}
 
 
