@@ -130,10 +130,25 @@ def quote_overlap(quote: str, cited_text: str) -> float:
 def validate_reference(ctx: EvidenceContext, ref: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
     """
     Check one model citation {component, start_line, end_line, quote} against
-    what was shown.  The range must lie inside the shown lines, and a non-empty
-    quote must match them (≥60% of its identifiers/numbers present) — a
-    citation whose quote is not in the cited code is rejected.
-    Returns (normalised reference, None) or (None, reason).
+    what was shown.  Returns (normalised reference, None) or (None, reason).
+
+    Models quote code more reliably than they number lines (they miscount, or
+    number lines relative to the method instead of the file), so a citation
+    is anchored by its **quote**:
+
+    1. The cited lines are inside the shown range and contain the quote
+       (≥60% of its identifiers/numbers) → accepted as cited.
+    2. Otherwise, with a quote, find it verbatim (whitespace-insensitive) in
+       the component's shown lines.  One occurrence → re-anchored there.
+       Several → the single one within REALIGN_WINDOW lines of the cited start
+       is used; otherwise rejected as ambiguous.
+    3. No verbatim match → the nearest range within REALIGN_WINDOW lines whose
+       identifiers/numbers match the quote (a fuzzy match never moves a
+       citation further than that).
+    4. No quote, or the quote is not in the shown code → rejected.
+
+    A re-anchored citation records `realigned_from`.  Every accepted citation
+    still points at code that was shown and that contains its quote.
     """
     tag = str(ref.get("component", ""))
     shown = ctx.by_tag(tag)
@@ -145,25 +160,70 @@ def validate_reference(ctx: EvidenceContext, ref: Dict[str, Any]) -> Tuple[Optio
         return None, f"{tag}: non-numeric line range"
     if start > end:
         start, end = end, start
-    if start < shown.first_line or end > shown.last_line:
+    quote = str(ref.get("quote") or "").strip()
+    in_range = shown.first_line <= start and end <= shown.last_line
+
+    if in_range and (not quote or quote_overlap(quote, _text(shown, start, end)) >= QUOTE_MIN_OVERLAP):
+        return _accepted(shown, start, end, quote), None
+    if not quote:
         return None, (f"{tag}: lines {start}-{end} outside the shown range "
                       f"{shown.first_line}-{shown.last_line}")
-    quote = str(ref.get("quote") or "").strip()
-    realigned_from = None
-    if quote and quote_overlap(quote, _text(shown, start, end)) < QUOTE_MIN_OVERLAP:
-        # Models often cite the line next to the code they quote.  Re-anchor to
-        # where the quote really is, within REALIGN_WINDOW lines in the same
-        # component; the citation still has to quote shown code.
-        moved = _realign(shown, quote, start, end)
-        if moved is None:
-            return None, f"{tag}: quote {quote[:60]!r} not found in lines {start}-{end}"
-        realigned_from, (start, end) = [start, end], moved
-    out = {"component_id": shown.component_id, "comp_pk": shown.comp_pk, "link_pk": shown.link_pk,
-           "path": shown.path, "start_line": start, "end_line": end, "tag": shown.tag,
-           "quote": quote, "quote_checked": bool(quote)}
-    if realigned_from:
-        out["realigned_from"] = realigned_from
+
+    exact = _locate_exact(shown, quote)
+    target: Optional[Tuple[int, int]] = None
+    if len(exact) == 1:
+        target = exact[0]
+    elif len(exact) > 1:
+        near = sorted((hit for hit in exact if abs(hit[0] - start) <= REALIGN_WINDOW),
+                      key=lambda hit: abs(hit[0] - start))
+        tie = len(near) > 1 and abs(near[0][0] - start) == abs(near[1][0] - start)
+        if not near or tie:
+            return None, (f"{tag}: quote {quote[:60]!r} occurs {len(exact)} times in the shown code "
+                          f"and the cited lines {start}-{end} do not identify one")
+        target = near[0]
+    else:
+        target = _realign(shown, quote, start, end)
+    if target is None:
+        where = "outside the shown range" if not in_range else "not found in those lines"
+        return None, f"{tag}: quote {quote[:60]!r} {where} (lines {start}-{end}) and not found nearby"
+    out = _accepted(shown, target[0], target[1], quote)
+    out["realigned_from"] = [start, end]
     return out, None
+
+
+def _accepted(shown: ShownComponent, start: int, end: int, quote: str) -> Dict[str, Any]:
+    return {"component_id": shown.component_id, "comp_pk": shown.comp_pk, "link_pk": shown.link_pk,
+            "path": shown.path, "start_line": start, "end_line": end, "tag": shown.tag,
+            "quote": quote, "quote_checked": bool(quote)}
+
+
+def _locate_exact(shown: ShownComponent, quote: str) -> List[Tuple[int, int]]:
+    """
+    Every place the quote occurs verbatim (whitespace-insensitive, possibly
+    across lines) in the shown lines, as (first line, last line).  Quotes
+    shorter than 4 characters are too generic to locate.
+    """
+    needle = " ".join(quote.split())
+    if len(needle) < 4:
+        return []
+    text, line_of = "", []
+    for n in range(shown.first_line, shown.last_line + 1):
+        segment = " ".join(shown.lines.get(n, "").split())
+        if not segment:
+            continue
+        if text:
+            text += " "
+            line_of.append(n)
+        text += segment
+        line_of.extend([n] * len(segment))
+    hits: List[Tuple[int, int]] = []
+    i = text.find(needle)
+    while i != -1:
+        hit = (line_of[i], line_of[i + len(needle) - 1])
+        if hit not in hits:
+            hits.append(hit)
+        i = text.find(needle, i + 1)
+    return hits
 
 
 REALIGN_WINDOW = 3

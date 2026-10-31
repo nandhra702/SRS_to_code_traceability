@@ -244,7 +244,14 @@ The `verification/` subpackage is the only stage that calls an LLM, which runs l
    - `supported`, which must cite line ranges **and quote the code**;
    - `not_supported`;
    - `insufficient_evidence`.
-4. **Citation validation** (`context.py`). Every citation must name a component that was shown, stay inside its shown lines, and carry a quote whose identifiers and numbers appear in those lines. A "supported" claim with no valid citation is downgraded to `insufficient_evidence`. Support can never come from a docstring, a similarity score, or an invented reference.
+4. **Citation validation** (`context.py`). Every citation must name a component that was shown, and its quote must match code inside that component's shown lines.
+
+   Citations are **anchored by their quote**, because models miscount lines or number them from the start of the method:
+   - if the cited lines don't contain the quote, but the quote occurs verbatim exactly once in the shown code, the citation is moved there and the original lines are recorded as `realigned_from`;
+   - if the quote occurs several times, the strictly nearest occurrence within 3 lines is used, otherwise the citation is rejected as ambiguous;
+   - a fuzzy (non-verbatim) match never moves a citation more than 3 lines.
+
+   A "supported" claim with no valid citation is downgraded to `insufficient_evidence`. Support can never come from a docstring, a similarity score, or an invented reference.
 5. **Requirement verdict.**
    - all claims supported → `supported`;
    - some supported → `partially_supported`;

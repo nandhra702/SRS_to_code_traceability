@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-PROMPT_VERSION = "verify-v2.2"  # v2.2: compound claims split into validated clauses
+PROMPT_VERSION = "verify-v2.3"  # v2.3: citations anchored by their quote anywhere in the shown component
 
 # ---------------------------------------------------------------------------
 # Step 1: split a requirement into atomic claims
