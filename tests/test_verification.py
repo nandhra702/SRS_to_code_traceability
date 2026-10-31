@@ -433,3 +433,79 @@ def test_rules_mode_makes_no_split_call(compound_world):
     llm = FakeLLM([judgement(("not_supported", []))])
     Verifier(s, res, llm, VerifierConfig(claim_splitting="rules")).run("d", requirement_ids=["FR-034"])
     assert len(llm.prompts) == 1
+
+
+# ============================================================================
+# Quote anchoring (v2.3) — synthetic code only
+# ============================================================================
+
+
+def _renew_ctx():
+    source = ("def renew(self):\n"
+              "    if self.is_returned():\n"
+              "        raise RuntimeError('returned')\n"
+              "    self.due_date = self.due_date + timedelta(days=14)\n"
+              "    self.renewals += 1\n"
+              "    return self.due_date\n"
+              "\n"
+              "    # repeated statement below\n"
+              "    self.renewals += 1")
+    return build_context([{"comp_pk": 1, "link_pk": 11, "component_id": "loan.Loan.renew",
+                           "component_type": "method", "role": "direct", "relative_path": "loan.py",
+                           "start_line": 25, "end_line": 33, "source_code": source}])
+
+
+class TestQuoteAnchoring:
+
+    def test_method_relative_line_numbers_are_anchored_by_the_quote(self):
+        # The model numbered lines from the method start (4) instead of the file (28).
+        ok, why = validate_reference(_renew_ctx(), {"component": "C1", "start_line": 4, "end_line": 4,
+                                                    "quote": "self.due_date = self.due_date + timedelta(days=14)"})
+        assert why is None and (ok["start_line"], ok["end_line"]) == (28, 28)
+        assert ok["realigned_from"] == [4, 4]
+
+    def test_in_range_but_wrong_lines_far_away(self):
+        ok, _ = validate_reference(_renew_ctx(), {"component": "C1", "start_line": 32, "end_line": 32,
+                                                  "quote": "raise RuntimeError('returned')"})
+        assert (ok["start_line"], ok["end_line"]) == (27, 27)
+
+    def test_multi_line_quote_spans_its_lines(self):
+        ok, _ = validate_reference(_renew_ctx(), {"component": "C1", "start_line": 1, "end_line": 2,
+                                                  "quote": "if self.is_returned(): raise RuntimeError('returned')"})
+        assert (ok["start_line"], ok["end_line"]) == (26, 27)
+
+    def test_correct_citation_is_untouched(self):
+        ok, _ = validate_reference(_renew_ctx(), {"component": "C1", "start_line": 30, "end_line": 30,
+                                                  "quote": "return self.due_date"})
+        assert (ok["start_line"], ok["end_line"]) == (30, 30) and "realigned_from" not in ok
+
+    def test_repeated_quote_picks_the_strictly_nearest_occurrence(self):
+        # occurrences on 29 and 33; cited 32 is nearer to 33
+        ok, _ = validate_reference(_renew_ctx(), {"component": "C1", "start_line": 32, "end_line": 32,
+                                                  "quote": "self.renewals += 1"})
+        assert (ok["start_line"], ok["end_line"]) == (33, 33)
+
+    def test_repeated_quote_equidistant_is_ambiguous(self):
+        # cited 31 is two lines from both occurrences
+        ok, why = validate_reference(_renew_ctx(), {"component": "C1", "start_line": 31, "end_line": 31,
+                                                    "quote": "self.renewals += 1"})
+        assert ok is None and "occurs 2 times" in why
+
+    def test_repeated_quote_far_from_the_citation_is_ambiguous(self):
+        ok, why = validate_reference(_renew_ctx(), {"component": "C1", "start_line": 2, "end_line": 2,
+                                                    "quote": "self.renewals += 1"})
+        assert ok is None and "occurs 2 times" in why
+
+    def test_out_of_range_without_quote_is_rejected(self):
+        ok, why = validate_reference(_renew_ctx(), {"component": "C1", "start_line": 4, "end_line": 4})
+        assert ok is None and "outside the shown range" in why
+
+    def test_quote_not_in_shown_code_is_rejected(self):
+        ok, why = validate_reference(_renew_ctx(), {"component": "C1", "start_line": 4, "end_line": 4,
+                                                    "quote": "send_email(member)"})
+        assert ok is None and "not found nearby" in why
+
+    def test_very_short_quote_is_not_located_far_away(self):
+        ok, _ = validate_reference(_renew_ctx(), {"component": "C1", "start_line": 4, "end_line": 4,
+                                                  "quote": "1"})
+        assert ok is None
