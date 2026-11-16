@@ -29,7 +29,8 @@ FAKE_VEC_NP = np.array(FAKE_VEC, dtype=np.float32)
 def _make_mock_model(dim: int = FAKE_DIM, vec: List[float] = None) -> MagicMock:
     arr = np.array(vec or FAKE_VEC, dtype=np.float32)
     model = MagicMock()
-    model.get_sentence_embedding_dimension.return_value = dim
+    model.get_embedding_dimension.return_value = dim
+    model.max_seq_length = None  # disables truncation reporting by default
 
     def encode_side(inp, **kw):
         if isinstance(inp, str):
@@ -99,20 +100,20 @@ class TestDimProperty:
     def test_preset_dim_no_model_load(self):
         cfg = TraceabilityConfig(embed_dim=384)
         emb = Embedder(cfg)
-        with patch("traceability.embedder.SentenceTransformer") as MockST:
+        with patch("sentence_transformers.SentenceTransformer") as MockST:
             assert emb.dim == 384
         MockST.assert_not_called()
 
     def test_resolves_from_model_when_none(self):
         emb, mock_model = _embedder(dim=None)
         assert emb.dim == FAKE_DIM
-        mock_model.get_sentence_embedding_dimension.assert_called_once()
+        mock_model.get_embedding_dimension.assert_called_once()
 
     def test_dim_cached(self):
         emb, mock_model = _embedder(dim=None)
         _ = emb.dim
         _ = emb.dim
-        mock_model.get_sentence_embedding_dimension.assert_called_once()
+        mock_model.get_embedding_dimension.assert_called_once()
 
     def test_import_error_raises_helpful_message(self):
         cfg = TraceabilityConfig(embed_dim=None)
@@ -154,10 +155,12 @@ class TestEmbedSingle:
         result = emb.embed(text)
         assert result.text_hash == Embedder.text_hash(text)
 
-    def test_empty_string_no_crash(self):
-        emb, _ = _embedder()
-        result = emb.embed("")
-        assert len(result.vector) == FAKE_DIM
+    @pytest.mark.parametrize("text", ["", "   \n"])
+    def test_empty_text_rejected(self, text):
+        emb, mock_model = _embedder()
+        with pytest.raises(ValueError):
+            emb.embed(text)
+        mock_model.encode.assert_not_called()
 
     def test_encode_called_with_correct_text(self):
         emb, mock_model = _embedder()
@@ -242,7 +245,7 @@ class TestLazyLoading:
         cfg = TraceabilityConfig(embed_dim=FAKE_DIM)
         emb = Embedder(cfg)
         mock = _make_mock_model()
-        with patch("traceability.embedder.SentenceTransformer", return_value=mock):
+        with patch("sentence_transformers.SentenceTransformer", return_value=mock):
             emb.embed("trigger")
         assert emb._model is mock
 
@@ -251,7 +254,7 @@ class TestLazyLoading:
         emb = Embedder(cfg)
         mock = _make_mock_model()
         with patch(
-            "traceability.embedder.SentenceTransformer", return_value=mock
+            "sentence_transformers.SentenceTransformer", return_value=mock
         ) as MockST:
             emb.embed("first")
             emb.embed("second")
@@ -294,18 +297,20 @@ def _st_available() -> bool:
         return False
 
 
+@pytest.fixture(scope="module")
+def real_embedder():
+    return Embedder(TraceabilityConfig(embed_model="sentence-transformers/all-MiniLM-L6-v2"))
+
+
 @pytest.mark.skipif(
     not _st_available(),
     reason="sentence-transformers not installed. Run: pip install sentence-transformers",
 )
 class TestEmbedderIntegration:
 
-    @pytest.fixture(scope="class")
-    def embedder(self):
-        cfg = TraceabilityConfig(
-            embed_model="sentence-transformers/all-MiniLM-L6-v2"
-        )
-        return Embedder(cfg)
+    @pytest.fixture()
+    def embedder(self, real_embedder):
+        return real_embedder
 
     def test_dim_is_384(self, embedder):
         assert embedder.dim == 384
@@ -345,3 +350,71 @@ class TestEmbedderIntegration:
         v_db    = embedder.embed("database table schema migration").vector
 
         assert cosine(v_login, v_auth) > cosine(v_login, v_db)
+
+
+# ============================================================================
+# Phase 1 behaviour: empty text, truncation, API compatibility, offline load
+# ============================================================================
+
+class TestEmptyAndTruncation:
+
+    def test_batch_skips_empty_texts_and_reports_them(self):
+        emb, mock_model = _embedder()
+        result = emb.embed_batch({"a": "real text", "b": "", "c": "  "})
+        assert set(result) == {"a"}
+        assert sorted(emb.skipped_empty) == ["b", "c"]
+        assert mock_model.encode.call_args[0][0] == ["real text"]
+
+    def test_batch_of_only_empty_texts_does_not_encode(self):
+        emb, mock_model = _embedder()
+        assert emb.embed_batch({"a": ""}) == {}
+        mock_model.encode.assert_not_called()
+
+    def test_truncated_texts_reported(self):
+        emb, mock_model = _embedder()
+        mock_model.max_seq_length = 3
+        mock_model.tokenizer.side_effect = lambda texts, **kw: {
+            "input_ids": [t.split() for t in texts]}
+        emb.embed_batch({"short": "one two", "long": "one two three four"})
+        assert emb.truncated == ["long"]
+
+    def test_truncation_check_failure_is_not_fatal(self):
+        emb, mock_model = _embedder()
+        mock_model.max_seq_length = 3
+        mock_model.tokenizer.side_effect = RuntimeError("boom")
+        assert set(emb.embed_batch({"a": "text"})) == {"a"}
+        assert emb.truncated == []
+
+    def test_tuple_keys_supported(self):
+        emb, _ = _embedder()
+        assert set(emb.embed_batch({("m.f", "existing"): "doc"})) == {("m.f", "existing")}
+
+
+class TestModelLoading:
+
+    def test_falls_back_to_pre_v6_dimension_api(self):
+        emb, _ = _embedder(dim=None)
+        old_api = MagicMock(spec=["get_sentence_embedding_dimension", "encode"])
+        old_api.get_sentence_embedding_dimension.return_value = 7
+        emb._model = old_api
+        assert emb.dim == 7
+
+    def test_loads_local_files_only_by_default(self):
+        emb = Embedder(TraceabilityConfig(embed_dim=FAKE_DIM))
+        with patch("sentence_transformers.SentenceTransformer",
+                   return_value=_make_mock_model()) as MockST:
+            emb.embed("x")
+        assert MockST.call_args.kwargs["local_files_only"] is True
+
+    def test_download_opt_in(self):
+        emb = Embedder(TraceabilityConfig(embed_dim=FAKE_DIM, embed_allow_download=True))
+        with patch("sentence_transformers.SentenceTransformer",
+                   return_value=_make_mock_model()) as MockST:
+            emb.embed("x")
+        assert MockST.call_args.kwargs["local_files_only"] is False
+
+    def test_uncached_model_gives_actionable_error(self):
+        emb = Embedder(TraceabilityConfig(embed_dim=FAKE_DIM))
+        with patch("sentence_transformers.SentenceTransformer", side_effect=OSError("not cached")):
+            with pytest.raises(RuntimeError, match="EMBED_ALLOW_DOWNLOAD"):
+                emb.embed("x")

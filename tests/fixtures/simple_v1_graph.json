@@ -1,0 +1,599 @@
+{
+  "components": {
+    "helper.HelperClass": {
+      "id": "helper.HelperClass",
+      "component_type": "class",
+      "file_path": "<repo>/helper.py",
+      "relative_path": "helper.py",
+      "depends_on": [
+        "helper.HelperClass.process_data",
+        "helper.HelperClass.get_result",
+        "helper.HelperClass._internal_process",
+        "helper.DataProcessor"
+      ],
+      "source_code": "class HelperClass:\n    \"\"\"\n    Summary:\n    Provides methods for data processing and manipulation.\n\n    Description:\n    This class offers methods to process data, handle internal operations, and retrieve data in various formats.\n\n    Attributes:\n    - data (list): A list to store processed data.\n    \"\"\"\n\n    def __init__(self):\n        self.data = []\n\n    def process_data(self):\n        \"\"\"\n        Summary:\n        Processes data and handles internal operations.\n\n        Description:\n        This method processes data using the `DataProcessor.process()` method and then calls the `_internal_process()` method to handle any internal operations.\n\n        Args:\n        None\n\n        Returns:\n        None\n        \"\"\"\n        self.data = DataProcessor.process()\n        self._internal_process()\n\n    def _internal_process(self):\n        \"\"\"\n        Summary:\n        Returns the data stored in the instance.\n\n        Description:\n        This method returns the data that is stored in the instance's `data` attribute.\n\n        Returns:\n        The data stored in the instance's `data` attribute.\n        \"\"\"\n        return self.data\n\n    def get_result(self):\n        \"\"\"\n        Summary:\n        Converts and returns the data as a string.\n\n        Description:\n        This method converts the data stored in the instance's `data` attribute to a string and returns it.\n\n        Returns:\n        A string representation of the data stored in the instance's `data` attribute.\n        \"\"\"\n        return str(self.data)",
+      "start_line": 1,
+      "end_line": 57,
+      "has_docstring": true,
+      "docstring": "\n    Summary:\n    Provides methods for data processing and manipulation.\n\n    Description:\n    This class offers methods to process data, handle internal operations, and retrieve data in various formats.\n\n    Attributes:\n    - data (list): A list to store processed data.\n    ",
+      "signature": null,
+      "parameters": [],
+      "return_type": null,
+      "containing_class": null,
+      "relationships": [
+        {
+          "source": "helper.HelperClass",
+          "target": "helper.HelperClass.__init__",
+          "type": "contains"
+        },
+        {
+          "source": "helper.HelperClass",
+          "target": "helper.HelperClass.process_data",
+          "type": "contains"
+        },
+        {
+          "source": "helper.HelperClass",
+          "target": "helper.HelperClass._internal_process",
+          "type": "contains"
+        },
+        {
+          "source": "helper.HelperClass",
+          "target": "helper.HelperClass.get_result",
+          "type": "contains"
+        }
+      ]
+    },
+    "helper.HelperClass.__init__": {
+      "id": "helper.HelperClass.__init__",
+      "component_type": "method",
+      "file_path": "<repo>/helper.py",
+      "relative_path": "helper.py",
+      "depends_on": [],
+      "source_code": "def __init__(self):\n        self.data = []",
+      "start_line": 13,
+      "end_line": 14,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": "__init__(self)",
+      "parameters": [],
+      "return_type": null,
+      "containing_class": "helper.HelperClass",
+      "relationships": []
+    },
+    "helper.HelperClass.process_data": {
+      "id": "helper.HelperClass.process_data",
+      "component_type": "method",
+      "file_path": "<repo>/helper.py",
+      "relative_path": "helper.py",
+      "depends_on": [
+        "helper.DataProcessor"
+      ],
+      "source_code": "def process_data(self):\n        \"\"\"\n        Summary:\n        Processes data and handles internal operations.\n\n        Description:\n        This method processes data using the `DataProcessor.process()` method and then calls the `_internal_process()` method to handle any internal operations.\n\n        Args:\n        None\n\n        Returns:\n        None\n        \"\"\"\n        self.data = DataProcessor.process()\n        self._internal_process()",
+      "start_line": 16,
+      "end_line": 31,
+      "has_docstring": true,
+      "docstring": "\n        Summary:\n        Processes data and handles internal operations.\n\n        Description:\n        This method processes data using the `DataProcessor.process()` method and then calls the `_internal_process()` method to handle any internal operations.\n\n        Args:\n        None\n\n        Returns:\n        None\n        ",
+      "signature": "process_data(self)",
+      "parameters": [],
+      "return_type": null,
+      "containing_class": "helper.HelperClass",
+      "relationships": [
+        {
+          "source": "helper.HelperClass.process_data",
+          "target": "helper.HelperClass._internal_process",
+          "type": "calls"
+        }
+      ]
+    },
+    "helper.HelperClass._internal_process": {
+      "id": "helper.HelperClass._internal_process",
+      "component_type": "method",
+      "file_path": "<repo>/helper.py",
+      "relative_path": "helper.py",
+      "depends_on": [],
+      "source_code": "def _internal_process(self):\n        \"\"\"\n        Summary:\n        Returns the data stored in the instance.\n\n        Description:\n        This method returns the data that is stored in the instance's `data` attribute.\n\n        Returns:\n        The data stored in the instance's `data` attribute.\n        \"\"\"\n        return self.data",
+      "start_line": 33,
+      "end_line": 44,
+      "has_docstring": true,
+      "docstring": "\n        Summary:\n        Returns the data stored in the instance.\n\n        Description:\n        This method returns the data that is stored in the instance's `data` attribute.\n\n        Returns:\n        The data stored in the instance's `data` attribute.\n        ",
+      "signature": "_internal_process(self)",
+      "parameters": [],
+      "return_type": null,
+      "containing_class": "helper.HelperClass",
+      "relationships": []
+    },
+    "helper.HelperClass.get_result": {
+      "id": "helper.HelperClass.get_result",
+      "component_type": "method",
+      "file_path": "<repo>/helper.py",
+      "relative_path": "helper.py",
+      "depends_on": [],
+      "source_code": "def get_result(self):\n        \"\"\"\n        Summary:\n        Converts and returns the data as a string.\n\n        Description:\n        This method converts the data stored in the instance's `data` attribute to a string and returns it.\n\n        Returns:\n        A string representation of the data stored in the instance's `data` attribute.\n        \"\"\"\n        return str(self.data)",
+      "start_line": 46,
+      "end_line": 57,
+      "has_docstring": true,
+      "docstring": "\n        Summary:\n        Converts and returns the data as a string.\n\n        Description:\n        This method converts the data stored in the instance's `data` attribute to a string and returns it.\n\n        Returns:\n        A string representation of the data stored in the instance's `data` attribute.\n        ",
+      "signature": "get_result(self)",
+      "parameters": [],
+      "return_type": null,
+      "containing_class": "helper.HelperClass",
+      "relationships": []
+    },
+    "helper.DataProcessor": {
+      "id": "helper.DataProcessor",
+      "component_type": "class",
+      "file_path": "<repo>/helper.py",
+      "relative_path": "helper.py",
+      "depends_on": [
+        "helper.DataProcessor.process",
+        "helper.DataProcessor._internal_process"
+      ],
+      "source_code": "class DataProcessor:\n    \"\"\"\n    Summary:\n    Manages data processing operations.\n\n    Description:\n    This class provides methods for processing data and handling internal operations.\n    \"\"\"\n\n    @staticmethod\n    def process():\n        \"\"\"\n        Summary:\n        Returns a list of integers.\n\n        Description:\n        This function processes data and returns a list containing the integers 1, 2, and 3.\n\n        Returns:\n        A list of integers.\n        \"\"\"\n        return [1, 2, 3]\n\n    def _internal_process(self):\n        \"\"\"\n        Summary:\n        Indicates that the internal process has been completed.\n\n        Description:\n        This method is an internal method that signifies the completion of a process and returns a confirmation message.\n\n        Returns:\n        A string indicating that the internal process has been completed.\n        \"\"\"\n        return 'processed'",
+      "start_line": 59,
+      "end_line": 93,
+      "has_docstring": true,
+      "docstring": "\n    Summary:\n    Manages data processing operations.\n\n    Description:\n    This class provides methods for processing data and handling internal operations.\n    ",
+      "signature": null,
+      "parameters": [],
+      "return_type": null,
+      "containing_class": null,
+      "relationships": [
+        {
+          "source": "helper.DataProcessor",
+          "target": "helper.DataProcessor.process",
+          "type": "contains"
+        },
+        {
+          "source": "helper.DataProcessor",
+          "target": "helper.DataProcessor._internal_process",
+          "type": "contains"
+        }
+      ]
+    },
+    "helper.DataProcessor.process": {
+      "id": "helper.DataProcessor.process",
+      "component_type": "method",
+      "file_path": "<repo>/helper.py",
+      "relative_path": "helper.py",
+      "depends_on": [],
+      "source_code": "def process():\n        \"\"\"\n        Summary:\n        Returns a list of integers.\n\n        Description:\n        This function processes data and returns a list containing the integers 1, 2, and 3.\n\n        Returns:\n        A list of integers.\n        \"\"\"\n        return [1, 2, 3]",
+      "start_line": 69,
+      "end_line": 80,
+      "has_docstring": true,
+      "docstring": "\n        Summary:\n        Returns a list of integers.\n\n        Description:\n        This function processes data and returns a list containing the integers 1, 2, and 3.\n\n        Returns:\n        A list of integers.\n        ",
+      "signature": "process()",
+      "parameters": [],
+      "return_type": null,
+      "containing_class": "helper.DataProcessor",
+      "relationships": []
+    },
+    "helper.DataProcessor._internal_process": {
+      "id": "helper.DataProcessor._internal_process",
+      "component_type": "method",
+      "file_path": "<repo>/helper.py",
+      "relative_path": "helper.py",
+      "depends_on": [],
+      "source_code": "def _internal_process(self):\n        \"\"\"\n        Summary:\n        Indicates that the internal process has been completed.\n\n        Description:\n        This method is an internal method that signifies the completion of a process and returns a confirmation message.\n\n        Returns:\n        A string indicating that the internal process has been completed.\n        \"\"\"\n        return 'processed'",
+      "start_line": 82,
+      "end_line": 93,
+      "has_docstring": true,
+      "docstring": "\n        Summary:\n        Indicates that the internal process has been completed.\n\n        Description:\n        This method is an internal method that signifies the completion of a process and returns a confirmation message.\n\n        Returns:\n        A string indicating that the internal process has been completed.\n        ",
+      "signature": "_internal_process(self)",
+      "parameters": [],
+      "return_type": null,
+      "containing_class": "helper.DataProcessor",
+      "relationships": []
+    },
+    "main.main_function": {
+      "id": "main.main_function",
+      "component_type": "function",
+      "file_path": "<repo>/main.py",
+      "relative_path": "main.py",
+      "depends_on": [
+        "helper.HelperClass",
+        "main.utility_function",
+        "inner.inner_functions.generate_timestamp"
+      ],
+      "source_code": "def main_function():\n    \"\"\"\n    Summary:\n    Executes data processing and returns the result.\n\n    Description:\n    This function creates an instance of `HelperClass`, processes data, calls utility functions, and returns the processed result.\n\n    Returns:\n    The result of the data processing as returned by `HelperClass.get_result()`.\n    \"\"\"\n    helper = HelperClass()\n    helper.process_data()\n    utility_function()\n    generate_timestamp()\n    return helper.get_result()",
+      "start_line": 4,
+      "end_line": 19,
+      "has_docstring": true,
+      "docstring": "\n    Summary:\n    Executes data processing and returns the result.\n\n    Description:\n    This function creates an instance of `HelperClass`, processes data, calls utility functions, and returns the processed result.\n\n    Returns:\n    The result of the data processing as returned by `HelperClass.get_result()`.\n    ",
+      "signature": "main_function()",
+      "parameters": [],
+      "return_type": null,
+      "containing_class": null,
+      "relationships": [
+        {
+          "source": "main.main_function",
+          "target": "helper.HelperClass",
+          "type": "imports"
+        },
+        {
+          "source": "main.main_function",
+          "target": "inner.inner_functions.generate_timestamp",
+          "type": "imports"
+        },
+        {
+          "source": "main.main_function",
+          "target": "helper.HelperClass",
+          "type": "instantiates"
+        },
+        {
+          "source": "main.main_function",
+          "target": "main.utility_function",
+          "type": "calls"
+        },
+        {
+          "source": "main.main_function",
+          "target": "inner.inner_functions.generate_timestamp",
+          "type": "calls"
+        }
+      ]
+    },
+    "main.utility_function": {
+      "id": "main.utility_function",
+      "component_type": "function",
+      "file_path": "<repo>/main.py",
+      "relative_path": "main.py",
+      "depends_on": [],
+      "source_code": "def utility_function():\n    \"\"\"\n    Summary:\n    Returns a fixed string 'utility'.\n\n    Description:\n    This function returns the string 'utility'.\n\n    Returns:\n    A string with the value 'utility'.\n    \"\"\"\n    return 'utility'",
+      "start_line": 21,
+      "end_line": 32,
+      "has_docstring": true,
+      "docstring": "\n    Summary:\n    Returns a fixed string 'utility'.\n\n    Description:\n    This function returns the string 'utility'.\n\n    Returns:\n    A string with the value 'utility'.\n    ",
+      "signature": "utility_function()",
+      "parameters": [],
+      "return_type": null,
+      "containing_class": null,
+      "relationships": []
+    },
+    "processor.AdvancedProcessor": {
+      "id": "processor.AdvancedProcessor",
+      "component_type": "class",
+      "file_path": "<repo>/processor.py",
+      "relative_path": "processor.py",
+      "depends_on": [
+        "processor.AdvancedProcessor.run",
+        "helper.HelperClass",
+        "processor.DataProcessor",
+        "main.utility_function",
+        "processor.AdvancedProcessor.process_result"
+      ],
+      "source_code": "class AdvancedProcessor:\n    \"\"\"\n    Summary:\n    Manages data processing and result retrieval.\n\n    Description:\n    This class manages data processing using `HelperClass` and `DataProcessor`, and retrieves the processed result using `process_result()`.\n\n    Attributes:\n    - helper (HelperClass): An instance of `HelperClass` for data processing.\n    - data_processor (DataProcessor): An instance of `DataProcessor` for handling internal operations.\n    \"\"\"\n\n    def __init__(self):\n        self.helper = HelperClass()\n        self.data_processor = DataProcessor()\n\n    def run(self):\n        \"\"\"\n        Summary:\n        Executes data processing and returns the result.\n\n        Description:\n        This method processes data using `self.helper.process_data()`, handles internal operations using `self.data_processor._internal_process()`, and returns the processed result using `self.process_result()`.\n\n        Returns:\n        The result of the data processing as returned by `self.process_result()`.\n        \"\"\"\n        self.helper.process_data()\n        self.data_processor._internal_process()\n        return self.process_result()\n\n    def process_result(self):\n        \"\"\"\n        Summary:\n        Calls the utility function and returns its result.\n\n        Description:\n        This method calls the `utility_function()` and returns its result.\n\n        Returns:\n        The result of the `utility_function()`.\n        \"\"\"\n        return utility_function()",
+      "start_line": 5,
+      "end_line": 48,
+      "has_docstring": true,
+      "docstring": "\n    Summary:\n    Manages data processing and result retrieval.\n\n    Description:\n    This class manages data processing using `HelperClass` and `DataProcessor`, and retrieves the processed result using `process_result()`.\n\n    Attributes:\n    - helper (HelperClass): An instance of `HelperClass` for data processing.\n    - data_processor (DataProcessor): An instance of `DataProcessor` for handling internal operations.\n    ",
+      "signature": null,
+      "parameters": [],
+      "return_type": null,
+      "containing_class": null,
+      "relationships": [
+        {
+          "source": "processor.AdvancedProcessor",
+          "target": "processor.AdvancedProcessor.__init__",
+          "type": "contains"
+        },
+        {
+          "source": "processor.AdvancedProcessor",
+          "target": "processor.AdvancedProcessor.run",
+          "type": "contains"
+        },
+        {
+          "source": "processor.AdvancedProcessor",
+          "target": "processor.AdvancedProcessor.process_result",
+          "type": "contains"
+        },
+        {
+          "source": "processor.AdvancedProcessor",
+          "target": "helper.HelperClass",
+          "type": "imports"
+        },
+        {
+          "source": "processor.AdvancedProcessor",
+          "target": "main.utility_function",
+          "type": "imports"
+        }
+      ]
+    },
+    "processor.AdvancedProcessor.__init__": {
+      "id": "processor.AdvancedProcessor.__init__",
+      "component_type": "method",
+      "file_path": "<repo>/processor.py",
+      "relative_path": "processor.py",
+      "depends_on": [
+        "helper.HelperClass",
+        "processor.DataProcessor"
+      ],
+      "source_code": "def __init__(self):\n        self.helper = HelperClass()\n        self.data_processor = DataProcessor()",
+      "start_line": 18,
+      "end_line": 20,
+      "has_docstring": false,
+      "docstring": "",
+      "signature": "__init__(self)",
+      "parameters": [],
+      "return_type": null,
+      "containing_class": "processor.AdvancedProcessor",
+      "relationships": [
+        {
+          "source": "processor.AdvancedProcessor.__init__",
+          "target": "helper.HelperClass",
+          "type": "imports"
+        },
+        {
+          "source": "processor.AdvancedProcessor.__init__",
+          "target": "helper.HelperClass",
+          "type": "instantiates"
+        }
+      ]
+    },
+    "processor.AdvancedProcessor.run": {
+      "id": "processor.AdvancedProcessor.run",
+      "component_type": "method",
+      "file_path": "<repo>/processor.py",
+      "relative_path": "processor.py",
+      "depends_on": [],
+      "source_code": "def run(self):\n        \"\"\"\n        Summary:\n        Executes data processing and returns the result.\n\n        Description:\n        This method processes data using `self.helper.process_data()`, handles internal operations using `self.data_processor._internal_process()`, and returns the processed result using `self.process_result()`.\n\n        Returns:\n        The result of the data processing as returned by `self.process_result()`.\n        \"\"\"\n        self.helper.process_data()\n        self.data_processor._internal_process()\n        return self.process_result()",
+      "start_line": 22,
+      "end_line": 35,
+      "has_docstring": true,
+      "docstring": "\n        Summary:\n        Executes data processing and returns the result.\n\n        Description:\n        This method processes data using `self.helper.process_data()`, handles internal operations using `self.data_processor._internal_process()`, and returns the processed result using `self.process_result()`.\n\n        Returns:\n        The result of the data processing as returned by `self.process_result()`.\n        ",
+      "signature": "run(self)",
+      "parameters": [],
+      "return_type": null,
+      "containing_class": "processor.AdvancedProcessor",
+      "relationships": [
+        {
+          "source": "processor.AdvancedProcessor.run",
+          "target": "processor.AdvancedProcessor.process_result",
+          "type": "calls"
+        }
+      ]
+    },
+    "processor.AdvancedProcessor.process_result": {
+      "id": "processor.AdvancedProcessor.process_result",
+      "component_type": "method",
+      "file_path": "<repo>/processor.py",
+      "relative_path": "processor.py",
+      "depends_on": [
+        "main.utility_function"
+      ],
+      "source_code": "def process_result(self):\n        \"\"\"\n        Summary:\n        Calls the utility function and returns its result.\n\n        Description:\n        This method calls the `utility_function()` and returns its result.\n\n        Returns:\n        The result of the `utility_function()`.\n        \"\"\"\n        return utility_function()",
+      "start_line": 37,
+      "end_line": 48,
+      "has_docstring": true,
+      "docstring": "\n        Summary:\n        Calls the utility function and returns its result.\n\n        Description:\n        This method calls the `utility_function()` and returns its result.\n\n        Returns:\n        The result of the `utility_function()`.\n        ",
+      "signature": "process_result(self)",
+      "parameters": [],
+      "return_type": null,
+      "containing_class": "processor.AdvancedProcessor",
+      "relationships": [
+        {
+          "source": "processor.AdvancedProcessor.process_result",
+          "target": "main.utility_function",
+          "type": "imports"
+        },
+        {
+          "source": "processor.AdvancedProcessor.process_result",
+          "target": "main.utility_function",
+          "type": "calls"
+        }
+      ]
+    },
+    "test_file.test_function": {
+      "id": "test_file.test_function",
+      "component_type": "function",
+      "file_path": "<repo>/test_file.py",
+      "relative_path": "test_file.py",
+      "depends_on": [],
+      "source_code": "def test_function():\n    \"\"\"\n    Summary:\n    Returns a boolean value indicating success.\n\n    Description:\n    This function returns `True`, indicating successful execution.\n\n    Returns:\n    A boolean value `True`.\n    \"\"\"\n    return True",
+      "start_line": 1,
+      "end_line": 12,
+      "has_docstring": true,
+      "docstring": "\n    Summary:\n    Returns a boolean value indicating success.\n\n    Description:\n    This function returns `True`, indicating successful execution.\n\n    Returns:\n    A boolean value `True`.\n    ",
+      "signature": "test_function()",
+      "parameters": [],
+      "return_type": null,
+      "containing_class": null,
+      "relationships": []
+    },
+    "inner.inner_functions.inner_function": {
+      "id": "inner.inner_functions.inner_function",
+      "component_type": "function",
+      "file_path": "<repo>/inner/inner_functions.py",
+      "relative_path": "inner\\inner_functions.py",
+      "depends_on": [],
+      "source_code": "def inner_function():\n    \"\"\"\n    Summary:\n    Returns a greeting message from the inner function.\n\n    Description:\n    This function is an inner function that returns a greeting message.\n\n    Returns:\n    A string containing the greeting message from the inner function.\n    \"\"\"\n    return 'Hello from inner function!'",
+      "start_line": 1,
+      "end_line": 12,
+      "has_docstring": true,
+      "docstring": "\n    Summary:\n    Returns a greeting message from the inner function.\n\n    Description:\n    This function is an inner function that returns a greeting message.\n\n    Returns:\n    A string containing the greeting message from the inner function.\n    ",
+      "signature": "inner_function()",
+      "parameters": [],
+      "return_type": null,
+      "containing_class": null,
+      "relationships": []
+    },
+    "inner.inner_functions.get_random_quote": {
+      "id": "inner.inner_functions.get_random_quote",
+      "component_type": "function",
+      "file_path": "<repo>/inner/inner_functions.py",
+      "relative_path": "inner\\inner_functions.py",
+      "depends_on": [],
+      "source_code": "def get_random_quote():\n    \"\"\"\n    Summary:\n    Returns a random motivational quote.\n\n    Description:\n    This function fetches and returns a random motivational quote for the user.\n\n    Returns:\n    A string containing a random motivational quote.\n    \"\"\"\n    return 'The best way to predict the future is to create it.'",
+      "start_line": 14,
+      "end_line": 25,
+      "has_docstring": true,
+      "docstring": "\n    Summary:\n    Returns a random motivational quote.\n\n    Description:\n    This function fetches and returns a random motivational quote for the user.\n\n    Returns:\n    A string containing a random motivational quote.\n    ",
+      "signature": "get_random_quote()",
+      "parameters": [],
+      "return_type": null,
+      "containing_class": null,
+      "relationships": []
+    },
+    "inner.inner_functions.generate_timestamp": {
+      "id": "inner.inner_functions.generate_timestamp",
+      "component_type": "function",
+      "file_path": "<repo>/inner/inner_functions.py",
+      "relative_path": "inner\\inner_functions.py",
+      "depends_on": [],
+      "source_code": "def generate_timestamp():\n    \"\"\"\n    Summary:\n    Returns a fixed timestamp.\n\n    Description:\n    This function returns a fixed timestamp string '2023-05-15 14:30:22'.\n\n    Returns:\n    A string representing the timestamp '2023-05-15 14:30:22'.\n    \"\"\"\n    return '2023-05-15 14:30:22'",
+      "start_line": 27,
+      "end_line": 38,
+      "has_docstring": true,
+      "docstring": "\n    Summary:\n    Returns a fixed timestamp.\n\n    Description:\n    This function returns a fixed timestamp string '2023-05-15 14:30:22'.\n\n    Returns:\n    A string representing the timestamp '2023-05-15 14:30:22'.\n    ",
+      "signature": "generate_timestamp()",
+      "parameters": [],
+      "return_type": null,
+      "containing_class": null,
+      "relationships": []
+    },
+    "inner.inner_functions.get_system_status": {
+      "id": "inner.inner_functions.get_system_status",
+      "component_type": "function",
+      "file_path": "<repo>/inner/inner_functions.py",
+      "relative_path": "inner\\inner_functions.py",
+      "depends_on": [],
+      "source_code": "def get_system_status():\n    \"\"\"\n    Summary:\n    Returns the current status of the system.\n\n    Description:\n    This function checks the operational status of the system and returns a message indicating whether all systems are operational.\n\n    Returns:\n    A string indicating the current status of the system.\n    \"\"\"\n    return 'All systems operational'",
+      "start_line": 40,
+      "end_line": 51,
+      "has_docstring": true,
+      "docstring": "\n    Summary:\n    Returns the current status of the system.\n\n    Description:\n    This function checks the operational status of the system and returns a message indicating whether all systems are operational.\n\n    Returns:\n    A string indicating the current status of the system.\n    ",
+      "signature": "get_system_status()",
+      "parameters": [],
+      "return_type": null,
+      "containing_class": null,
+      "relationships": []
+    },
+    "inner.inner_functions.fetch_user_message": {
+      "id": "inner.inner_functions.fetch_user_message",
+      "component_type": "function",
+      "file_path": "<repo>/inner/inner_functions.py",
+      "relative_path": "inner\\inner_functions.py",
+      "depends_on": [],
+      "source_code": "def fetch_user_message():\n    \"\"\"\n    Summary:\n    Returns a welcome message with notification count.\n\n    Description:\n    This function fetches and returns a user's welcome message along with the number of notifications they have.\n\n    Returns:\n    A string containing the welcome message and notification count.\n    \"\"\"\n    return 'Welcome back! You have 3 notifications.'",
+      "start_line": 53,
+      "end_line": 64,
+      "has_docstring": true,
+      "docstring": "\n    Summary:\n    Returns a welcome message with notification count.\n\n    Description:\n    This function fetches and returns a user's welcome message along with the number of notifications they have.\n\n    Returns:\n    A string containing the welcome message and notification count.\n    ",
+      "signature": "fetch_user_message()",
+      "parameters": [],
+      "return_type": null,
+      "containing_class": null,
+      "relationships": []
+    }
+  },
+  "relationships": [
+    {
+      "source": "helper.HelperClass",
+      "target": "helper.HelperClass.__init__",
+      "type": "contains"
+    },
+    {
+      "source": "helper.HelperClass",
+      "target": "helper.HelperClass.process_data",
+      "type": "contains"
+    },
+    {
+      "source": "helper.HelperClass",
+      "target": "helper.HelperClass._internal_process",
+      "type": "contains"
+    },
+    {
+      "source": "helper.HelperClass",
+      "target": "helper.HelperClass.get_result",
+      "type": "contains"
+    },
+    {
+      "source": "helper.HelperClass.process_data",
+      "target": "helper.HelperClass._internal_process",
+      "type": "calls"
+    },
+    {
+      "source": "helper.DataProcessor",
+      "target": "helper.DataProcessor.process",
+      "type": "contains"
+    },
+    {
+      "source": "helper.DataProcessor",
+      "target": "helper.DataProcessor._internal_process",
+      "type": "contains"
+    },
+    {
+      "source": "main.main_function",
+      "target": "helper.HelperClass",
+      "type": "imports"
+    },
+    {
+      "source": "main.main_function",
+      "target": "inner.inner_functions.generate_timestamp",
+      "type": "imports"
+    },
+    {
+      "source": "main.main_function",
+      "target": "helper.HelperClass",
+      "type": "instantiates"
+    },
+    {
+      "source": "main.main_function",
+      "target": "main.utility_function",
+      "type": "calls"
+    },
+    {
+      "source": "main.main_function",
+      "target": "inner.inner_functions.generate_timestamp",
+      "type": "calls"
+    },
+    {
+      "source": "processor.AdvancedProcessor",
+      "target": "processor.AdvancedProcessor.__init__",
+      "type": "contains"
+    },
+    {
+      "source": "processor.AdvancedProcessor",
+      "target": "processor.AdvancedProcessor.run",
+      "type": "contains"
+    },
+    {
+      "source": "processor.AdvancedProcessor",
+      "target": "processor.AdvancedProcessor.process_result",
+      "type": "contains"
+    },
+    {
+      "source": "processor.AdvancedProcessor",
+      "target": "helper.HelperClass",
+      "type": "imports"
+    },
+    {
+      "source": "processor.AdvancedProcessor",
+      "target": "main.utility_function",
+      "type": "imports"
+    },
+    {
+      "source": "processor.AdvancedProcessor.__init__",
+      "target": "helper.HelperClass",
+      "type": "imports"
+    },
+    {
+      "source": "processor.AdvancedProcessor.__init__",
+      "target": "helper.HelperClass",
+      "type": "instantiates"
+    },
+    {
+      "source": "processor.AdvancedProcessor.run",
+      "target": "processor.AdvancedProcessor.process_result",
+      "type": "calls"
+    },
+    {
+      "source": "processor.AdvancedProcessor.process_result",
+      "target": "main.utility_function",
+      "type": "imports"
+    },
+    {
+      "source": "processor.AdvancedProcessor.process_result",
+      "target": "main.utility_function",
+      "type": "calls"
+    }
+  ]
+}

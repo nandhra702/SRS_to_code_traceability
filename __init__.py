@@ -23,17 +23,25 @@ CLI::
 
 from .config import TraceabilityConfig
 from .embedder import Embedder, EmbeddingResult
-from .loader import GraphLoader, SRSLoader
+from .loader import GraphLoader, SRSLoader, read_post_run_docstrings
 from .pipeline import Pipeline
-from .store import DimensionMismatchError, Store
+from .query import QueryResolver, ResolvedQuery
+from .retrieval import Retriever, SearchResponse
+from .store import DimensionMismatchError, SchemaVersionError, Store
 
 __all__ = [
+    "QueryResolver",
+    "ResolvedQuery",
+    "Retriever",
+    "SearchResponse",
     "TraceabilityConfig",
     "Embedder",
     "EmbeddingResult",
     "GraphLoader",
     "SRSLoader",
+    "read_post_run_docstrings",
     "Pipeline",
     "Store",
     "DimensionMismatchError",
+    "SchemaVersionError",
 ]
