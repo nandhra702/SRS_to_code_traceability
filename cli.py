@@ -1,180 +1,369 @@
 """
-traceability CLI — commands for schema management and data ingestion.
+traceability CLI — schema management and data ingestion.
 
 Commands
 --------
-init-schema          Create extension + all tables + btree indexes.
-ingest-requirements  Load an SRS output JSON into PostgreSQL.
-ingest-graph         Load a DocAgent dependency graph JSON into PostgreSQL.
-rebuild-embeddings   Re-embed rows whose embedding is NULL or stale.
+init-schema            Create extension + tables + indexes (idempotent).
+ingest-requirements    Load an SRS Agent output file.
+ingest-graph           Load a DocAgent dependency graph (legacy or V1).
+rebuild-embeddings     Re-embed rows that are missing/stale (model or text changed).
+build-vector-indexes   Build optional HNSW indexes (exact search is used otherwise).
+search                 Search requirements, docstrings and code (lexical + vector, fused).
+evaluate               Score retrieval against a gold-standard mapping (v2).
+find-candidates        Search agent: top-N code candidates per requirement, stored as links.
+evaluate-candidates    Score stored candidates against a gold-standard mapping (v2).
+map-requirements       Mapping agent: direct + supporting links per requirement (pending verification).
+evaluate-mapping       Score stored mapping links against a gold-standard mapping (v2).
+show-mapping           Show one requirement's mapped subgraph (components + edges).
+verify                 Verifier agent (LLM): claim-level, line-cited verdicts per requirement.
+evaluate-verification  Score stored verifications against a gold-standard mapping (v2).
+show-verification      Show one requirement's latest verdict, claims and citations.
 
-Usage examples
---------------
-# Initialise the schema (idempotent):
+Each ingest prints a JSON report (counts, skipped/truncated texts, skipped
+relationships) to stdout; progress logs go to stderr.
+
+Examples (run from the directory containing this package)
+--------
 python -m traceability.cli init-schema
-
-# Ingest requirements from an SRS output file:
-python -m traceability.cli ingest-requirements \\
-    SRS_agent/SRSAgent_Major_Project/output/Basic_SRS_Document_requirements.txt
-
-# Ingest a DocAgent graph (auto-detects legacy vs V1 format):
+python -m traceability.cli ingest-requirements ../SRSAgent/output/Basic_SRS_Document_requirements.txt
 python -m traceability.cli ingest-graph \\
-    DocAgent_Major_Project/output/dependency_graphs/raw_test_repo_simple_dependency_graph.json \\
-    --repo-path DocAgent_Major_Project/data/raw_test_repo_simple \\
-    --repo-snapshot HEAD
-
-# Rebuild stale embeddings after a model change:
+    ../DocAgent/output/dependency_graphs/raw_test_repo_simple_dependency_graph.json \\
+    --repo-path ../DocAgent/data/raw_test_repo_simple \\
+    --source-root ../DocAgent/data/raw_test_repo_simple
 python -m traceability.cli rebuild-embeddings
 
-All database credentials are read from environment variables:
-  TRACEABILITY_PG_DSN        — full libpq DSN (takes precedence)
-  TRACEABILITY_PG_HOST       — default: localhost
-  TRACEABILITY_PG_PORT       — default: 5432
-  TRACEABILITY_PG_DBNAME     — default: traceability_dev
-  TRACEABILITY_PG_USER       — default: postgres
-  TRACEABILITY_PG_PASSWORD   — default: (empty)
-
+Database credentials come from environment variables only:
+  TRACEABILITY_PG_DSN       full libpq DSN (takes precedence)
+  TRACEABILITY_PG_HOST / _PORT / _DBNAME / _USER / _PASSWORD
 Embedding model:
-  EMBED_MODEL                — default: sentence-transformers/all-MiniLM-L6-v2
-  EMBED_MODEL_VERSION        — default: same as EMBED_MODEL
-  EMBED_DIM                  — default: auto-detected from model
+  EMBED_MODEL (default sentence-transformers/all-MiniLM-L6-v2),
+  EMBED_MODEL_VERSION, EMBED_DIM, EMBED_CODE_MAX_CHARS
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import sys
 
 from .config import TraceabilityConfig
 from .embedder import Embedder
-from .loader import GraphLoader, SRSLoader
 from .pipeline import Pipeline
-from .schema import SCHEMA_VERSION
-from .store import Store
+from .store import DimensionMismatchError, SchemaVersionError, Store
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)-8s %(name)s — %(message)s",
-    datefmt="%H:%M:%S",
-)
 logger = logging.getLogger("traceability.cli")
 
 
-# ---------------------------------------------------------------------------
-# Command implementations
-# ---------------------------------------------------------------------------
-
-
-def cmd_init_schema(args: argparse.Namespace, cfg: TraceabilityConfig) -> int:
-    """Create extension, tables, and btree indexes.  Never drops anything."""
-    embedder = Embedder(cfg)
-    embed_dim = embedder.dim
+def cmd_init_schema(args: argparse.Namespace, cfg: TraceabilityConfig) -> dict:
+    embed_dim = Embedder(cfg).dim
     with Store(cfg) as store:
         store.init_schema(embed_dim)
-        store.record_migration(SCHEMA_VERSION, "Phase 1 initial schema")
-    logger.info("Schema ready (embed_dim=%d, version=%s).", embed_dim, SCHEMA_VERSION)
-    return 0
+    return {"embed_dim": embed_dim}
 
 
-def cmd_ingest_requirements(
-    args: argparse.Namespace, cfg: TraceabilityConfig
-) -> int:
-    """Ingest an SRS Agent output JSON file."""
-    path = args.srs_path
-    logger.info("Ingesting requirements from: %s", path)
-
-    loader = SRSLoader(path).load()
-    logger.info("Loaded %d requirements.", len(loader.requirements))
-
-    embed = not args.no_embed
-    embeddings = {}
-    embed_dim: int
-
-    if embed:
-        embedder  = Embedder(cfg)
-        embed_dim = embedder.dim
-        embeddings = embedder.embed_batch(loader.as_embedding_texts())
-        logger.info(
-            "Computed %d embeddings (model=%s, dim=%d).",
-            len(embeddings), embedder.model_name, embed_dim,
-        )
-    else:
-        embed_dim = cfg.embed_dim or 384
-
-    with Store(cfg) as store:
-        store.init_schema(embed_dim)
-        doc_pk = store.upsert_document(loader.document_record())
-        n = store.upsert_requirements(
-            doc_pk, loader.requirements, embeddings or None
-        )
-    logger.info("Done. %d requirement(s) upserted (document_pk=%d).", n, doc_pk)
-    return 0
-
-
-def cmd_ingest_graph(args: argparse.Namespace, cfg: TraceabilityConfig) -> int:
-    """Ingest a DocAgent dependency graph JSON file."""
-    path = args.graph_path
-    logger.info("Ingesting graph from: %s", path)
-
-    loader = GraphLoader(path).load()
-    logger.info(
-        "Loaded %d components, %d relationships.",
-        len(loader.components), len(loader.relationships),
+def cmd_ingest_requirements(args: argparse.Namespace, cfg: TraceabilityConfig) -> dict:
+    return Pipeline(cfg).ingest_srs(
+        args.srs_path, document_id=args.document_id, embed=not args.no_embed
     )
 
-    embed = not args.no_embed
-    embeddings = {}
-    embed_dim: int
 
-    if embed:
-        embedder  = Embedder(cfg)
-        embed_dim = embedder.dim
-        embeddings = embedder.embed_batch(loader.as_embedding_texts())
-        logger.info(
-            "Computed %d embeddings (model=%s, dim=%d).",
-            len(embeddings), embedder.model_name, embed_dim,
-        )
-    else:
-        embed_dim = cfg.embed_dim or 384
+def cmd_ingest_graph(args: argparse.Namespace, cfg: TraceabilityConfig) -> dict:
+    return Pipeline(cfg).ingest_graph(
+        args.graph_path,
+        repo_id=args.repo_id,
+        repo_path=args.repo_path,
+        repo_snapshot=args.repo_snapshot,
+        source_root=args.source_root,
+        embed=not args.no_embed,
+    )
+
+
+def cmd_rebuild_embeddings(args: argparse.Namespace, cfg: TraceabilityConfig) -> dict:
+    return Pipeline(cfg).rebuild_embeddings()
+
+
+def cmd_build_vector_indexes(args: argparse.Namespace, cfg: TraceabilityConfig) -> dict:
+    with Store(cfg) as store:
+        store.build_vector_indexes()
+    return {"vector_indexes": "hnsw"}
+
+
+def cmd_search(args: argparse.Namespace, cfg: TraceabilityConfig):
+    from .query import QueryResolver
+    from .retrieval import Retriever
+
+    entities = tuple(e.strip() for e in args.entities.split(",") if e.strip())
+    with Store(cfg) as store:
+        query = QueryResolver(store).resolve(
+            args.query, mode=args.mode, document_id=args.document_id, repo_id=args.repo_id)
+        response = Retriever(store).search(
+            query, method=args.method, entities=entities,
+            top_k=args.top_k, candidate_k=args.candidate_k)
+    return response.to_dict() if args.json else format_search(response)
+
+
+def format_search(response) -> str:
+    q = response.query
+    lines = [f"Query: {q.original!r}  ->  mode={q.mode}, status={q.status}, method={response.method}"]
+    if q.requirement:
+        lines.append(f"Resolved requirement {q.requirement['requirement_id']}: {q.requirement['title']}")
+    if q.message:
+        lines.append(q.message)
+    for c in q.candidates:
+        lines.append(f"  candidate: {c}")
+
+    def chan(h):
+        return ", ".join(f"{k.split('_', 1)[1]} #{v['rank']} ({v['score']:.3f})"
+                         for k, v in sorted(h.channels.items()))
+
+    sections = [(e, response.results[e]) for e in ("requirement", "docstring", "component")
+                if e in response.results]
+    if {"docstring", "component"} & set(response.results):
+        sections.append(("implementation candidates (code + docstrings fused)", response.components))
+    for title, hits in sections:
+        lines.append(f"\n== {title} ==")
+        if not hits:
+            lines.append("  (no results)")
+        for i, h in enumerate(hits, start=1):
+            d = h.data
+            where = f"  {d['path']}:{d['start_line']}-{d['end_line']}" if "path" in d else ""
+            extra = f" [{d['docstring_kind']} docstring]" if "docstring_kind" in d else ""
+            extra += f" [via {d['via_docstring']} docstring]" if "via_docstring" in d else ""
+            label = f"{h.external_id}: {d['title']}" if h.entity == "requirement" else h.external_id
+            lines.append(f"{i:3d}. {h.score:.4f}  {label}{extra}{where}")
+            lines.append(f"       {chan(h)}")
+    return "\n".join(lines)
+
+
+def cmd_evaluate(args: argparse.Namespace, cfg: TraceabilityConfig):
+    from .evaluation import Evaluator, format_report, load_gold
+    from .query import QueryResolver
+    from .retrieval import Retriever
 
     with Store(cfg) as store:
-        store.init_schema(embed_dim)
-
-        nc = store.upsert_components(
-            list(loader.components.values()),
-            embeddings or None,
-            repo_path=args.repo_path,
-            repo_snapshot=args.repo_snapshot,
-        )
-
-        # Ingest original docstrings present in the graph
-        nd = 0
-        for comp in loader.components.values():
-            if comp.get("has_docstring") and comp.get("docstring", "").strip():
-                nd += store.upsert_docstrings(comp["id"], original=comp["docstring"])
-
-        nr_ins, nr_skip = store.upsert_relationships(loader.relationships)
-
-    logger.info(
-        "Done. %d component(s), %d docstring(s), "
-        "%d relationship(s) inserted (%d skipped).",
-        nc, nd, nr_ins, nr_skip,
-    )
-    return 0
+        report = Evaluator(QueryResolver(store), Retriever(store)).evaluate(
+            load_gold(args.gold), repo_id=args.repo_id, document_id=args.document_id,
+            query_source=args.query_source, candidate_k=args.candidate_k)
+    if args.out:
+        with open(args.out, "w", encoding="utf-8") as fh:
+            json.dump(report, fh, indent=2, default=str)
+    return format_report(report) + (f"\n\nFull report written to {args.out}" if args.out else "")
 
 
-def cmd_rebuild_embeddings(
-    args: argparse.Namespace, cfg: TraceabilityConfig
-) -> int:
-    """Re-embed all rows whose embedding is NULL or was made with a different model."""
-    Pipeline(cfg).rebuild_embeddings()
-    return 0
+def cmd_find_candidates(args: argparse.Namespace, cfg: TraceabilityConfig):
+    from .candidates import CandidateSearch
+    from .query import QueryResolver
+    from .retrieval import Retriever
+
+    types = [t.strip() for t in args.types.split(",")] if args.types else None
+    with Store(cfg) as store:
+        report = CandidateSearch(store, QueryResolver(store), Retriever(store)).run(
+            args.document_id, args.repo_id, top_n=args.top_n,
+            candidate_k=args.candidate_k, types=types, pipeline_version=args.pipeline_version)
+    if args.json:
+        return report
+    lines = [f"Candidates for {report['requirements']} requirement(s) of {report['document_id']} "
+             f"in {report['repo_id']} ({report['links_stored']} links, {report['pipeline_version']})", ""]
+    for r in report["per_requirement"]:
+        sig = r["signals"]
+        top = ", ".join(c.split(".", 1)[-1] for c in r["candidates"][:3])
+        lines.append(f"{r['requirement_id']:10s} sim={sig['best_code_similarity']} "
+                     f"agree={'Y' if sig['agreement'] else 'n'}  top: {top}")
+    return "\n".join(lines)
 
 
-# ---------------------------------------------------------------------------
-# Argument parser
-# ---------------------------------------------------------------------------
+def cmd_evaluate_candidates(args: argparse.Namespace, cfg: TraceabilityConfig):
+    from .evaluation import Evaluator, load_gold
+    from .query import QueryResolver
+    from .retrieval import Retriever
+
+    with Store(cfg) as store:
+        report = Evaluator(QueryResolver(store), Retriever(store)).evaluate_candidates(
+            load_gold(args.gold), document_id=args.document_id,
+            pipeline_version=args.pipeline_version)
+    if args.out:
+        with open(args.out, "w", encoding="utf-8") as fh:
+            json.dump(report, fh, indent=2, default=str)
+    s, m = report["scores"], report["matching"]
+    return "\n".join([
+        f"Stored candidates ({report['pipeline_version']}) for {report['document_id']}: "
+        f"{report['requirements_scored']} gold requirements scored",
+        "  " + "  ".join(f"{k}={v:.3f}" for k, v in s.items()),
+        f"  matching: {m['by_id']} by ID, {m['by_text']} by text, unmatched {m['unmatched']}",
+        f"  primary component not among candidates: {report['missed']}",
+    ])
+
+
+def _short(component_id: str) -> str:
+    """'library_system.services.lending.LendingService.checkout' -> 'lending.LendingService.checkout'."""
+    parts = component_id.split(".")
+    return ".".join(parts[-3:]) if len(parts) > 3 else component_id
+
+
+def cmd_map_requirements(args: argparse.Namespace, cfg: TraceabilityConfig):
+    from .mapping import Mapper, MappingConfig
+    from .query import QueryResolver
+
+    mc = MappingConfig(max_direct_rank=args.max_direct_rank, max_supporting=args.max_supporting,
+                       use_source_references=not args.no_source_references)
+    with Store(cfg) as store:
+        report = Mapper(store, QueryResolver(store), mc).run(
+            args.document_id, args.repo_id, candidates_version=args.candidates_version,
+            pipeline_version=args.pipeline_version)
+    if args.json:
+        return report
+    lines = [f"Mapped {report['requirements']} requirement(s) of {report['document_id']} -> "
+             f"{report['repo_id']} ({report['pipeline_version']}, from {report['candidates_version']}): "
+             f"{report['links']['direct']} direct, {report['links']['supporting']} supporting, "
+             f"{report['links']['docstrings']} docstring links; all pending verification", ""]
+    for r in report["per_requirement"]:
+        lines.append(f"{r['requirement_id']:10s} direct: {', '.join(_short(c) for c in r['direct']) or '-'}")
+        if r["supporting"]:
+            lines.append(f"{'':10s} supporting: {', '.join(_short(c) for c in r['supporting'])}")
+    if report["without_candidates"]:
+        lines.append(f"\nNo candidates (run find-candidates first?): {report['without_candidates']}")
+    return "\n".join(lines)
+
+
+def cmd_evaluate_mapping(args: argparse.Namespace, cfg: TraceabilityConfig):
+    from .evaluation import Evaluator, load_gold
+    from .query import QueryResolver
+
+    with Store(cfg) as store:
+        report = Evaluator(QueryResolver(store), None).evaluate_mapping(
+            load_gold(args.gold), document_id=args.document_id, pipeline_version=args.pipeline_version)
+    if args.out:
+        with open(args.out, "w", encoding="utf-8") as fh:
+            json.dump(report, fh, indent=2, default=str)
+    lines = [f"Mapping {report['pipeline_version']} for {report['document_id']}: "
+             f"{report['requirements_scored']} gold requirements scored", ""]
+    for key, label in (("direct", "direct vs gold primary"), ("supporting", "supporting vs gold supporting"),
+                       ("all", "all links vs all gold links")):
+        s = report["scores"][key]
+        lines.append(f"  {label:32s} P={s['precision']:.3f}  R={s['recall']:.3f}  F1={s['f1']:.3f}  "
+                     f"(tp={s['tp']} fp={s['fp']} fn={s['fn']})")
+    lines.append("\n  links created for requirements with no code (verifier must reject): "
+                 + ", ".join(f"{k}={v['links']}" for k, v in report["requirements_without_code"].items()))
+    missed = {d["requirement_id"]: [_short(c) for c in d["missed_primary"]]
+              for d in report["per_requirement"] if d["missed_primary"]}
+    lines.append(f"  primary components not linked as direct: {missed}")
+    return "\n".join(lines)
+
+
+def cmd_show_mapping(args: argparse.Namespace, cfg: TraceabilityConfig):
+    from .mapping import Mapper
+    from .query import QueryResolver
+
+    with Store(cfg) as store:
+        sub = Mapper(store, QueryResolver(store)).subgraph(
+            args.document_id, args.requirement_id, args.pipeline_version)
+    if args.json:
+        return sub
+    lines = [f"Subgraph of {sub['requirement_id']} ({sub['pipeline_version']}): "
+             f"{len(sub['nodes'])} components, {len(sub['edges'])} edges", ""]
+    for n in sorted(sub["nodes"], key=lambda n: (n["role"] != "direct", n["rank"] or 99)):
+        rank = f"#{n['rank']}" if n["rank"] else "graph"
+        lines.append(f"  [{n['role']:10s}] {_short(n['component_id']):45s} {rank:>6s}  "
+                     f"{n['path']}:{n['lines'][0]}-{n['lines'][1]}  ({n['status']})")
+    if sub["edges"]:
+        lines.append("")
+    for e in sub["edges"]:
+        where = f"  line {e['line']}" if e.get("line") else ""
+        lines.append(f"  {_short(e['from'])} --{e['type']}--> {_short(e['to'])}  [{e['source']}]{where}")
+    return "\n".join(lines)
+
+
+def cmd_verify(args: argparse.Namespace, cfg: TraceabilityConfig):
+    from .query import QueryResolver
+    from .verification import OllamaClient, Verifier, VerifierConfig
+
+    gold_claims = None
+    if args.claims == "gold":
+        from .evaluation import load_gold
+        if not args.gold:
+            raise ValueError("--claims gold needs --gold PATH")
+        gold_claims = {r["requirement_id"]: [{"claim_id": c["claim_id"], "text": c["text"], "source": "gold"}
+                                             for c in r["claims"]]
+                       for r in load_gold(args.gold)["requirements"] if r.get("claims")}
+    ids = [i.strip() for i in args.requirements.split(",")] if args.requirements else None
+    llm = OllamaClient(args.model)
+    vc = VerifierConfig(claim_splitting=args.claims if args.claims != "gold" else "rules")
+
+    def progress(i, n, r):
+        print(f"[{i}/{n}] {r['requirement_id']:10s} {r['status']}", file=sys.stderr, flush=True)
+
+    with Store(cfg) as store:
+        report = Verifier(store, QueryResolver(store), llm, vc).run(
+            args.document_id, requirement_ids=ids, gold_claims=gold_claims,
+            mapping_version=args.mapping_version, pipeline_version=args.pipeline_version,
+            progress=progress)
+    if args.json:
+        return report
+    lines = [f"Verified {report['requirements']} requirement(s) of {report['document_id']} with "
+             f"{report['model']} ({report['prompt_version']}, claims: {report['claims_source']})",
+             "  " + ", ".join(f"{k}={v}" for k, v in sorted(report["status_counts"].items())), ""]
+    for r in report["per_requirement"]:
+        flags = " [incomplete requirement text]" if r.get("incomplete_requirement_text") else ""
+        flags += f" [error: {r['error']}]" if r.get("error") else ""
+        lines.append(f"{r['requirement_id']:10s} {r['status']}{flags}")
+    return "\n".join(lines)
+
+
+def cmd_evaluate_verification(args: argparse.Namespace, cfg: TraceabilityConfig):
+    from .evaluation import Evaluator, load_gold
+    from .query import QueryResolver
+
+    with Store(cfg) as store:
+        report = Evaluator(QueryResolver(store), None).evaluate_verification(
+            load_gold(args.gold), document_id=args.document_id, pipeline_version=args.pipeline_version)
+    if args.out:
+        with open(args.out, "w", encoding="utf-8") as fh:
+            json.dump(report, fh, indent=2, default=str)
+    s, c = report["scores"], report["counts"]
+    fmt = lambda v: "n/a" if v is None else f"{v:.3f}"
+    lines = [f"Verification {report['pipeline_version']} for {report['document_id']}: "
+             f"{report['requirements_judged']} gold requirements with an expected verdict", "",
+             f"  exact accuracy        {fmt(s['exact_accuracy'])}",
+             f"  false-support rate    {fmt(s['false_support_rate'])}  "
+             f"({c['false_support']} of {c['partial_or_not_implemented']} partial/not-implemented declared supported)",
+             f"  implemented recall    {fmt(s['implemented_recall'])}  "
+             f"({c['implemented_supported']} of {c['implemented']} implemented declared supported)",
+             f"  citation validity     {fmt(s['citation_validity'])}  "
+             f"({c['citations_valid']} valid, {c['citations_rejected']} rejected)",
+             f"  citations on gold code {fmt(s['citation_on_gold'])}",
+             f"  claim accuracy        {fmt(s['claim_accuracy'])}  ({c['gold_claims_compared']} gold claims compared)",
+             "", "  gold status -> predicted verdicts:"]
+    for gold_status, preds in report["confusion"].items():
+        lines.append(f"    {gold_status:16s} " + ", ".join(f"{k}={v}" for k, v in sorted(preds.items())))
+    wrong = [f"{d['requirement_id']}({d['gold_status']}->{d['predicted']})"
+             for d in report["per_requirement"] if d["correct"] is False]
+    lines.append(f"\n  disagreements: {', '.join(wrong) or 'none'}")
+    return "\n".join(lines)
+
+
+def cmd_show_verification(args: argparse.Namespace, cfg: TraceabilityConfig):
+    from .query import QueryResolver
+
+    with Store(cfg) as store:
+        doc_pk = QueryResolver(store).document_pk(args.document_id)
+        row = store.latest_verifications(document_pk=doc_pk, pipeline_version=args.pipeline_version) \
+            .get(args.requirement_id)
+    if row is None:
+        raise ValueError(f"No {args.pipeline_version} verification for {args.requirement_id}.")
+    if args.json:
+        return row
+    lines = [f"{args.requirement_id}: {row['status']}  ({row['model']}, {row['prompt_version']}, "
+             f"{row['created_at']:%Y-%m-%d %H:%M})", f"  {row['rationale']}", ""]
+    for c in row["claims"]:
+        lines.append(f"  [{c['verdict']}] {c['text']}")
+        for e in c.get("evidence") or []:
+            lines.append(f"      cites {_short(e['component_id'])} {e['path']}:{e['start_line']}-{e['end_line']}"
+                         + (f"  \"{e['quote'][:60]}\"" if e.get("quote") else ""))
+        for r in c.get("rejected_evidence") or []:
+            lines.append(f"      REJECTED citation: {r['reason']}")
+        lines.append(f"      why: {c.get('rationale', '')}")
+    return "\n".join(lines)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -184,69 +373,152 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    # init-schema
-    sub.add_parser(
-        "init-schema",
-        help="Create extension, tables, and indexes (idempotent).",
-    )
+    sub.add_parser("init-schema", help="Create extension, tables, and indexes (idempotent).")
 
-    # ingest-requirements
-    p_req = sub.add_parser(
-        "ingest-requirements",
-        help="Ingest an SRS Agent output JSON file.",
-    )
-    p_req.add_argument("srs_path", metavar="SRS_PATH",
-                       help="Path to the SRS output JSON file.")
-    p_req.add_argument("--no-embed", action="store_true",
-                       help="Skip embedding computation.")
+    p_req = sub.add_parser("ingest-requirements", help="Ingest an SRS Agent output file.")
+    p_req.add_argument("srs_path", metavar="SRS_PATH")
+    p_req.add_argument("--document-id", default=None,
+                       help="Logical document ID (default: SRSOutput document_id, else file stem).")
+    p_req.add_argument("--no-embed", action="store_true", help="Skip embedding computation.")
 
-    # ingest-graph
-    p_graph = sub.add_parser(
-        "ingest-graph",
-        help="Ingest a DocAgent dependency graph JSON file.",
-    )
-    p_graph.add_argument("graph_path", metavar="GRAPH_PATH",
-                         help="Path to the dependency graph JSON file.")
-    p_graph.add_argument("--repo-path", default=None,
-                         help="Absolute path to the analysed repository.")
-    p_graph.add_argument("--repo-snapshot", default=None,
-                         help="Git commit SHA or tag at parse time.")
-    p_graph.add_argument("--no-embed", action="store_true",
-                         help="Skip embedding computation.")
+    p_graph = sub.add_parser("ingest-graph", help="Ingest a DocAgent dependency graph JSON file.")
+    p_graph.add_argument("graph_path", metavar="GRAPH_PATH")
+    p_graph.add_argument("--repo-id", default=None,
+                         help="Logical repository ID (default: graph file stem).")
+    p_graph.add_argument("--repo-path", default=None, help="Path of the analysed repository.")
+    p_graph.add_argument("--repo-snapshot", default=None, help="Git commit SHA or tag at parse time.")
+    p_graph.add_argument("--source-root", default=None,
+                         help="Repository after DocAgent generation; recovers generated docstrings.")
+    p_graph.add_argument("--no-embed", action="store_true", help="Skip embedding computation.")
 
-    # rebuild-embeddings
-    sub.add_parser(
-        "rebuild-embeddings",
-        help="Re-embed stale rows (NULL or wrong model version).",
-    )
+    sub.add_parser("rebuild-embeddings", help="Re-embed missing or stale rows.")
+    sub.add_parser("build-vector-indexes", help="Build optional HNSW indexes.")
 
+    p_search = sub.add_parser("search", help="Search requirements, docstrings and code.")
+    p_search.add_argument("query", help="Requirement ID, requirement text, or keywords.")
+    p_search.add_argument("--repo-id", default=None, help="Restrict code/docstring results to a repository.")
+    p_search.add_argument("--document-id", default=None, help="SRS document scope for requirement IDs.")
+    p_search.add_argument("--mode", default="auto", choices=["auto", "id", "text", "adhoc", "keyword"])
+    p_search.add_argument("--method", default="hybrid", choices=["hybrid", "lexical", "vector"])
+    p_search.add_argument("--entities", default="requirement,docstring,component",
+                          help="Comma-separated subset of requirement,docstring,component.")
+    p_search.add_argument("--top-k", type=int, default=10)
+    p_search.add_argument("--candidate-k", type=int, default=50, help="Hits per channel before fusion.")
+    p_search.add_argument("--json", action="store_true", help="Print the full result as JSON.")
+
+    p_eval = sub.add_parser("evaluate", help="Score retrieval against a gold-standard mapping (v2).")
+    p_eval.add_argument("--gold", required=True, help="Path to gold_standard_mapping.json (v2).")
+    p_eval.add_argument("--repo-id", required=True)
+    p_eval.add_argument("--document-id", default=None, help="Needed for --query-source ingested.")
+    p_eval.add_argument("--query-source", default="gold_text", choices=["gold_text", "ingested"])
+    p_eval.add_argument("--candidate-k", type=int, default=50)
+    p_eval.add_argument("--out", default=None, help="Write the full JSON report here.")
+
+    p_cand = sub.add_parser("find-candidates",
+                            help="Search agent: store top-N code candidates for every requirement of a document.")
+    p_cand.add_argument("--document-id", required=True)
+    p_cand.add_argument("--repo-id", required=True)
+    p_cand.add_argument("--top-n", type=int, default=10)
+    p_cand.add_argument("--candidate-k", type=int, default=50)
+    p_cand.add_argument("--types", default=None, help="e.g. functional,non-functional (default: all)")
+    p_cand.add_argument("--pipeline-version", default="candidates-v1")
+    p_cand.add_argument("--json", action="store_true")
+
+    p_ec = sub.add_parser("evaluate-candidates", help="Score stored candidates against a gold mapping (v2).")
+    p_ec.add_argument("--gold", required=True)
+    p_ec.add_argument("--document-id", required=True)
+    p_ec.add_argument("--pipeline-version", default="candidates-v1")
+    p_ec.add_argument("--out", default=None)
+
+    p_map = sub.add_parser("map-requirements",
+                           help="Mapping agent: build each requirement's code subgraph from its candidates.")
+    p_map.add_argument("--document-id", required=True)
+    p_map.add_argument("--repo-id", required=True)
+    p_map.add_argument("--candidates-version", default="candidates-v1")
+    p_map.add_argument("--pipeline-version", default="mapping-v1")
+    p_map.add_argument("--max-direct-rank", type=int, default=3)
+    p_map.add_argument("--max-supporting", type=int, default=6)
+    p_map.add_argument("--no-source-references", action="store_true",
+                       help="Use only DocAgent's typed edges for supporting links.")
+    p_map.add_argument("--json", action="store_true")
+
+    p_em = sub.add_parser("evaluate-mapping", help="Score stored mapping links against a gold mapping (v2).")
+    p_em.add_argument("--gold", required=True)
+    p_em.add_argument("--document-id", required=True)
+    p_em.add_argument("--pipeline-version", default="mapping-v1")
+    p_em.add_argument("--out", default=None)
+
+    p_show = sub.add_parser("show-mapping", help="Show one requirement's mapped subgraph.")
+    p_show.add_argument("requirement_id")
+    p_show.add_argument("--document-id", required=True)
+    p_show.add_argument("--pipeline-version", default="mapping-v1")
+    p_show.add_argument("--json", action="store_true")
+
+    p_ver = sub.add_parser("verify", help="Verifier agent: check mapped code against each requirement (LLM).")
+    p_ver.add_argument("--document-id", required=True)
+    p_ver.add_argument("--model", default=None, help="Ollama model (default: $VERIFIER_MODEL or qwen2.5-coder:7b).")
+    p_ver.add_argument("--requirements", default=None, help="Comma-separated IDs (default: all).")
+    p_ver.add_argument("--claims", default="clauses", choices=["clauses", "rules", "llm", "gold"],
+                       help="clauses: the requirement's own sentences/list items, compound ones split into "
+                            "validated clauses (default); rules: sentences/list items only; llm: model-split "
+                            "(can invent); gold: the gold standard's claims (evaluation).")
+    p_ver.add_argument("--gold", default=None, help="Gold mapping, for --claims gold.")
+    p_ver.add_argument("--mapping-version", default="mapping-v1")
+    p_ver.add_argument("--pipeline-version", default="verification-v1")
+    p_ver.add_argument("--json", action="store_true")
+
+    p_ev = sub.add_parser("evaluate-verification", help="Score stored verifications against a gold mapping (v2).")
+    p_ev.add_argument("--gold", required=True)
+    p_ev.add_argument("--document-id", required=True)
+    p_ev.add_argument("--pipeline-version", default="verification-v1")
+    p_ev.add_argument("--out", default=None)
+
+    p_sv = sub.add_parser("show-verification", help="Show one requirement's latest verdict with its claims and citations.")
+    p_sv.add_argument("requirement_id")
+    p_sv.add_argument("--document-id", required=True)
+    p_sv.add_argument("--pipeline-version", default="verification-v1")
+    p_sv.add_argument("--json", action="store_true")
     return parser
 
 
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
+_DISPATCH = {
+    "init-schema":          cmd_init_schema,
+    "ingest-requirements":  cmd_ingest_requirements,
+    "ingest-graph":         cmd_ingest_graph,
+    "rebuild-embeddings":   cmd_rebuild_embeddings,
+    "build-vector-indexes": cmd_build_vector_indexes,
+    "search":               cmd_search,
+    "evaluate":             cmd_evaluate,
+    "find-candidates":      cmd_find_candidates,
+    "evaluate-candidates":  cmd_evaluate_candidates,
+    "map-requirements":     cmd_map_requirements,
+    "evaluate-mapping":     cmd_evaluate_mapping,
+    "show-mapping":         cmd_show_mapping,
+    "verify":               cmd_verify,
+    "evaluate-verification": cmd_evaluate_verification,
+    "show-verification":    cmd_show_verification,
+}
 
 
-def main() -> None:
-    parser = build_parser()
-    args   = parser.parse_args()
-    cfg    = TraceabilityConfig()
-
-    dispatch = {
-        "init-schema":         cmd_init_schema,
-        "ingest-requirements": cmd_ingest_requirements,
-        "ingest-graph":        cmd_ingest_graph,
-        "rebuild-embeddings":  cmd_rebuild_embeddings,
-    }
-
-    handler = dispatch.get(args.command)
-    if handler is None:
-        parser.print_help()
-        sys.exit(1)
-
-    sys.exit(handler(args, cfg))
+def main(argv=None) -> int:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)-8s %(name)s — %(message)s",
+        datefmt="%H:%M:%S",
+        stream=sys.stderr,
+    )
+    args = build_parser().parse_args(argv)
+    if args.command not in ("init-schema", "ingest-requirements", "ingest-graph",
+                            "rebuild-embeddings", "build-vector-indexes"):
+        logging.getLogger().setLevel(logging.WARNING)  # keep result output readable
+    try:
+        result = _DISPATCH[args.command](args, TraceabilityConfig())
+    except (SchemaVersionError, DimensionMismatchError, ValueError, FileNotFoundError) as exc:
+        logger.error("%s: %s", type(exc).__name__, exc)
+        return 2
+    print(result if isinstance(result, str) else json.dumps(result, indent=2, default=str))
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

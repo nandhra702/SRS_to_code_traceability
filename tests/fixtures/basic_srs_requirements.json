@@ -1,0 +1,3487 @@
+[
+  {
+    "requirement_id": "REQ-001",
+    "id_source": "generated",
+    "raw_text": "The purpose of this SRS is to clearly describe what the system shall do and the quality attributes it shall maintain. The requirements are written so that they can be understood and tested independently.",
+    "normalized_text": "",
+    "type": "non-functional",
+    "subtype": "readability",
+    "detection_confidence": "high",
+    "detection_reason": "explicit obligation wording: shall",
+    "candidate_id": "C-0003",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Independent Requirements",
+    "actor": [
+      "requirements writer"
+    ],
+    "actions": [
+      "write requirements"
+    ],
+    "entities": [
+      "requirements"
+    ],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "requirements"
+    ],
+    "synonyms": [],
+    "sub_requirements": [],
+    "retrieval_text": "understandable requirements",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 11,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-002",
+    "id_source": "generated",
+    "raw_text": "The system will provide a simple platform through which users can access the application's core functionality, submit information, receive system responses, and maintain relevant records. The initial release focuses on three core functional capabilities: user authentication, data management, and system reporting/feedback.",
+    "normalized_text": "Provide a simple platform for users to access application core functionality, submit information, receive system responses, and maintain records.",
+    "type": "functional",
+    "subtype": "security",
+    "detection_confidence": "medium",
+    "detection_reason": "capability or expected behavior wording: will",
+    "candidate_id": "C-0004",
+    "candidate_decision": "keep",
+    "candidate_confidence": "medium",
+    "candidate_reason": "The text specifies capabilities and expected behaviors.",
+    "review_required": true,
+    "title": "Platform for Users",
+    "actor": [
+      "user"
+    ],
+    "actions": [
+      "access application core functionality",
+      "submit information",
+      "receive system responses",
+      "maintain records"
+    ],
+    "entities": [
+      "platform",
+      "users",
+      "application core functionality",
+      "information",
+      "system responses",
+      "records"
+    ],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "platform",
+      "users",
+      "application",
+      "information",
+      "responses",
+      "records"
+    ],
+    "synonyms": [
+      "simple platform",
+      "access",
+      "submit",
+      "receive",
+      "maintain"
+    ],
+    "sub_requirements": [],
+    "retrieval_text": "users platform access submit receive maintain records",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 13,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-003",
+    "id_source": "generated",
+    "raw_text": "End users and stakeholders who need to understand system behavior.",
+    "normalized_text": "End users and stakeholders who need to understand system behavior.",
+    "type": "functional",
+    "subtype": "system documentation",
+    "detection_confidence": "high",
+    "detection_reason": "explicit obligation wording: need to",
+    "candidate_id": "C-0008",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "System Documentation",
+    "actor": [
+      "user",
+      "stakeholder"
+    ],
+    "actions": [
+      "understand system behavior"
+    ],
+    "entities": [
+      "end user",
+      "stakeholder",
+      "system"
+    ],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "system",
+      "behavior"
+    ],
+    "synonyms": [
+      "end user",
+      "stakeholder"
+    ],
+    "sub_requirements": [],
+    "retrieval_text": "system behavior understanding",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 18,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-004",
+    "id_source": "generated",
+    "raw_text": "The proposed system is a standalone application with a user-facing interface and a backend responsible for processing requests and maintaining application data. The architecture may be implemented using a web-based frontend, an application server, and a persistent database. The exact technologies may be selected during the design phase.",
+    "normalized_text": "The proposed system is a standalone application with a user-facing interface and a backend.",
+    "type": "functional",
+    "subtype": "interface",
+    "detection_confidence": "medium",
+    "detection_reason": "capability or expected behavior wording: may",
+    "candidate_id": "C-0016",
+    "candidate_decision": "keep",
+    "candidate_confidence": "medium",
+    "candidate_reason": "The text specifies a capability and expected behavior.",
+    "review_required": true,
+    "title": "Architecture Design",
+    "actor": [
+      "user"
+    ],
+    "actions": [],
+    "entities": [
+      "system",
+      "application",
+      "interface",
+      "backend"
+    ],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "architecture",
+      "design"
+    ],
+    "synonyms": [],
+    "sub_requirements": [],
+    "retrieval_text": "standalone application, user-facing interface, backend",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 29,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-005",
+    "id_source": "generated",
+    "raw_text": "Authenticate users and control access to protected functionality.",
+    "normalized_text": "Authenticate users and control access to protected functionality.",
+    "type": "functional",
+    "subtype": "security",
+    "detection_confidence": "medium",
+    "detection_reason": "starts with an actionable instruction",
+    "candidate_id": "C-0017",
+    "candidate_decision": "keep",
+    "candidate_confidence": "medium",
+    "candidate_reason": "States an actionable instruction to authenticate users and control access to protected functionality.",
+    "review_required": true,
+    "title": "User Authentication and Access Control",
+    "actor": [
+      "user"
+    ],
+    "actions": [
+      "authenticate"
+    ],
+    "entities": [
+      "user",
+      "functionality"
+    ],
+    "inputs": [
+      "user credentials"
+    ],
+    "outputs": [
+      "access control"
+    ],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "authentication",
+      "access control"
+    ],
+    "synonyms": [],
+    "sub_requirements": [],
+    "retrieval_text": "authenticate user access functionality",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 31,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-006",
+    "id_source": "generated",
+    "raw_text": "Accept, validate, create, update, retrieve, and delete application data.",
+    "normalized_text": "Accept, validate, create, update, retrieve, and delete application data.",
+    "type": "functional",
+    "subtype": "data management",
+    "detection_confidence": "medium",
+    "detection_reason": "starts with an actionable instruction",
+    "candidate_id": "C-0018",
+    "candidate_decision": "keep",
+    "candidate_confidence": "medium",
+    "candidate_reason": "States an actionable instruction to accept, validate, create, update, retrieve, and delete application data.",
+    "review_required": true,
+    "title": "Data CRUD Operations",
+    "actor": [
+      "system"
+    ],
+    "actions": [
+      "accept",
+      "validate",
+      "create",
+      "update",
+      "retrieve",
+      "delete"
+    ],
+    "entities": [
+      "application data"
+    ],
+    "inputs": [
+      "application data"
+    ],
+    "outputs": [
+      "application data"
+    ],
+    "preconditions": [
+      "application data is available"
+    ],
+    "postconditions": [
+      "application data is updated or deleted"
+    ],
+    "conditions": [
+      "data integrity must be maintained"
+    ],
+    "constraints": [
+      "data must be validated before creation or update"
+    ],
+    "error_conditions": [
+      "data inconsistency or invalid input"
+    ],
+    "domain_terms": [
+      "data management",
+      "database operations"
+    ],
+    "synonyms": [
+      "create, read, update, delete (CRUD)",
+      "data access, manipulation"
+    ],
+    "sub_requirements": [],
+    "retrieval_text": "accept, validate, create, update, retrieve, delete, application data",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 32,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-007",
+    "id_source": "generated",
+    "raw_text": "Provide meaningful confirmation, error messages, and basic system feedback.",
+    "normalized_text": "Provide meaningful confirmation, error messages, and basic system feedback.",
+    "type": "non-functional",
+    "subtype": "usability",
+    "detection_confidence": "medium",
+    "detection_reason": "starts with an actionable instruction",
+    "candidate_id": "C-0019",
+    "candidate_decision": "keep",
+    "candidate_confidence": "medium",
+    "candidate_reason": "States an actionable instruction to provide meaningful confirmation, error messages, and basic system feedback.",
+    "review_required": true,
+    "title": "Meaningful Feedback and Error Messages",
+    "actor": [],
+    "actions": [],
+    "entities": [],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "confirmation",
+      "error messages",
+      "system feedback"
+    ],
+    "synonyms": [
+      "meaningful feedback",
+      "error notifications",
+      "system alerts"
+    ],
+    "sub_requirements": [],
+    "retrieval_text": "confirmation error messages system feedback",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 33,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-008",
+    "id_source": "generated",
+    "raw_text": "Maintain persistent records required for normal operation.",
+    "normalized_text": "Maintain persistent records for normal operation.",
+    "type": "non-functional",
+    "subtype": "availability",
+    "detection_confidence": "medium",
+    "detection_reason": "starts with an actionable instruction",
+    "candidate_id": "C-0020",
+    "candidate_decision": "keep",
+    "candidate_confidence": "medium",
+    "candidate_reason": "States an actionable instruction to maintain persistent records required for normal operation.",
+    "review_required": true,
+    "title": "Data Persistence",
+    "actor": [],
+    "actions": [],
+    "entities": [
+      "records",
+      "operation"
+    ],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "data",
+      "storage",
+      "availability"
+    ],
+    "synonyms": [
+      "data persistence",
+      "persistent data storage",
+      "operation records"
+    ],
+    "sub_requirements": [],
+    "retrieval_text": "persistent records operation",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 34,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-009",
+    "id_source": "generated",
+    "raw_text": "The system is expected to operate on modern desktop and mobile browsers for a web-based deployment. The backend shall run on a supported server or cloud environment with access to the application's database. The final deployment environment may vary according to project needs.",
+    "normalized_text": "Operate on modern browsers and servers",
+    "type": "non-functional",
+    "subtype": "deployment",
+    "detection_confidence": "high",
+    "detection_reason": "explicit obligation wording: shall",
+    "candidate_id": "C-0023",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Deployment Environment",
+    "actor": [
+      "system"
+    ],
+    "actions": [
+      "operate"
+    ],
+    "entities": [
+      "desktop",
+      "mobile",
+      "browsers",
+      "servers",
+      "cloud environment",
+      "database"
+    ],
+    "inputs": [
+      "access to the application's database"
+    ],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [
+      "modern desktop and mobile browsers",
+      "supported server or cloud environment"
+    ],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "deployment",
+      "browser",
+      "server",
+      "database"
+    ],
+    "synonyms": [
+      "web-based",
+      "cloud-based",
+      "database management"
+    ],
+    "sub_requirements": [],
+    "retrieval_text": "desktop mobile browser server cloud database",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 39,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-010",
+    "id_source": "generated",
+    "raw_text": "Users have access to a supported device and network connection.",
+    "normalized_text": "",
+    "type": "functional",
+    "subtype": "interface",
+    "detection_confidence": "medium",
+    "detection_reason": "starts with an actor or system and an action",
+    "candidate_id": "C-0024",
+    "candidate_decision": "keep",
+    "candidate_confidence": "medium",
+    "candidate_reason": "States an actionable instruction to ensure users have access to a supported device and network connection.",
+    "review_required": true,
+    "title": "Supported Device and Network Access",
+    "actor": [
+      "user"
+    ],
+    "actions": [
+      "have access"
+    ],
+    "entities": [
+      "device",
+      "network"
+    ],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "device",
+      "network"
+    ],
+    "synonyms": [
+      "supported device",
+      "network connection"
+    ],
+    "sub_requirements": [],
+    "retrieval_text": "user supported device network access",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 41,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-011",
+    "id_source": "generated",
+    "raw_text": "Users provide valid information when requested.",
+    "normalized_text": "Users provide valid information when requested.",
+    "type": "functional",
+    "subtype": "usability",
+    "detection_confidence": "medium",
+    "detection_reason": "starts with an actor or system and an action",
+    "candidate_id": "C-0026",
+    "candidate_decision": "keep",
+    "candidate_confidence": "medium",
+    "candidate_reason": "States an actionable instruction to ensure users provide valid information when requested.",
+    "review_required": true,
+    "title": "User Input Validation",
+    "actor": [
+      "user"
+    ],
+    "actions": [
+      "provide valid information"
+    ],
+    "entities": [
+      "user",
+      "information"
+    ],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "validation",
+      "input"
+    ],
+    "synonyms": [],
+    "sub_requirements": [],
+    "retrieval_text": "User input validation, valid information",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 43,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-012",
+    "id_source": "generated",
+    "raw_text": "The system shall provide a mechanism for users to authenticate before accessing protected functionality.",
+    "normalized_text": "",
+    "type": "functional",
+    "subtype": "interface",
+    "detection_confidence": "high",
+    "detection_reason": "explicit obligation wording: shall",
+    "candidate_id": "C-0029",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "User Authentication",
+    "actor": [
+      "user"
+    ],
+    "actions": [
+      "authenticate"
+    ],
+    "entities": [
+      "user",
+      "functionality"
+    ],
+    "inputs": [
+      "user credentials"
+    ],
+    "outputs": [
+      "access to protected functionality"
+    ],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "authentication",
+      "authorization"
+    ],
+    "synonyms": [],
+    "sub_requirements": [],
+    "retrieval_text": "user authenticate access",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 48,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "FR-01.1",
+    "id_source": "source",
+    "raw_text": "FR-01.1: The system shall provide a login interface.",
+    "normalized_text": "The system shall provide a login interface.",
+    "type": "functional",
+    "subtype": "interface",
+    "detection_confidence": "high",
+    "detection_reason": "contains a source requirement ID",
+    "candidate_id": "C-0030",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Login Interface",
+    "actor": [
+      "system"
+    ],
+    "actions": [
+      "provide"
+    ],
+    "entities": [
+      "login interface"
+    ],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "login",
+      "interface"
+    ],
+    "synonyms": [
+      "login screen",
+      "authentication portal"
+    ],
+    "sub_requirements": [],
+    "retrieval_text": "login interface provide",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 49,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "FR-01.2",
+    "id_source": "source",
+    "raw_text": "FR-01.2: The system shall validate submitted credentials.",
+    "normalized_text": "The system shall validate submitted credentials.",
+    "type": "functional",
+    "subtype": "security",
+    "detection_confidence": "high",
+    "detection_reason": "contains a source requirement ID",
+    "candidate_id": "C-0031",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Validate Submitted Credentials",
+    "actor": [
+      "user",
+      "system"
+    ],
+    "actions": [
+      "validate"
+    ],
+    "entities": [
+      "credentials"
+    ],
+    "inputs": [
+      "credentials"
+    ],
+    "outputs": [
+      "validation result"
+    ],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "authentication"
+    ],
+    "synonyms": [
+      "verify"
+    ],
+    "sub_requirements": [],
+    "retrieval_text": "validate credentials",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 50,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "FR-01.3",
+    "id_source": "source",
+    "raw_text": "FR-01.3: The system shall deny access when credentials are invalid.",
+    "normalized_text": "The system shall deny access when credentials are invalid.",
+    "type": "functional",
+    "subtype": "security",
+    "detection_confidence": "high",
+    "detection_reason": "contains a source requirement ID",
+    "candidate_id": "C-0032",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Deny Invalid Credentials Access",
+    "actor": [
+      "system"
+    ],
+    "actions": [
+      "deny access"
+    ],
+    "entities": [
+      "credentials",
+      "access"
+    ],
+    "inputs": [
+      "invalid credentials"
+    ],
+    "outputs": [
+      "denied access"
+    ],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [
+      "invalid credentials"
+    ],
+    "domain_terms": [
+      "authentication",
+      "access control"
+    ],
+    "synonyms": [
+      "invalid login attempt",
+      "incorrect credentials"
+    ],
+    "sub_requirements": [],
+    "retrieval_text": "deny invalid credentials access authentication",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 51,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "FR-01.4",
+    "id_source": "source",
+    "raw_text": "FR-01.4: The system shall provide an appropriate message when authentication fails.",
+    "normalized_text": "The system shall provide an appropriate message when authentication fails.",
+    "type": "functional",
+    "subtype": "interface",
+    "detection_confidence": "high",
+    "detection_reason": "contains a source requirement ID",
+    "candidate_id": "C-0033",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Authentication Failure Message",
+    "actor": [
+      "system"
+    ],
+    "actions": [
+      "provide message"
+    ],
+    "entities": [
+      "message",
+      "system"
+    ],
+    "inputs": [
+      "failed authentication"
+    ],
+    "outputs": [
+      "appropriate message"
+    ],
+    "preconditions": [],
+    "postconditions": [
+      "message provided"
+    ],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [
+      "failed authentication"
+    ],
+    "domain_terms": [
+      "authentication",
+      "message"
+    ],
+    "synonyms": [
+      "incorrect credentials",
+      "login failure"
+    ],
+    "sub_requirements": [],
+    "retrieval_text": "authentication failure system message",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 52,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "FR-01.5",
+    "id_source": "source",
+    "raw_text": "FR-01.5: The system shall allow an authenticated user to log out.",
+    "normalized_text": "Allow an authenticated user to log out.",
+    "type": "functional",
+    "subtype": "interface",
+    "detection_confidence": "high",
+    "detection_reason": "contains a source requirement ID",
+    "candidate_id": "C-0034",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Logout",
+    "actor": [
+      "user"
+    ],
+    "actions": [
+      "log out"
+    ],
+    "entities": [
+      "user"
+    ],
+    "inputs": [
+      "authenticated user"
+    ],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "logout",
+      "session"
+    ],
+    "synonyms": [
+      "logoff"
+    ],
+    "sub_requirements": [],
+    "retrieval_text": "allow authenticated user log out",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 53,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-018",
+    "id_source": "generated",
+    "raw_text": "The system shall allow authorized users to manage the records associated with the application's primary purpose.",
+    "normalized_text": "",
+    "type": "functional",
+    "subtype": "data management",
+    "detection_confidence": "high",
+    "detection_reason": "explicit obligation wording: shall",
+    "candidate_id": "C-0035",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Manage Application Records",
+    "actor": [
+      "authorized user"
+    ],
+    "actions": [
+      "manage"
+    ],
+    "entities": [
+      "records",
+      "application"
+    ],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "records",
+      "application",
+      "management"
+    ],
+    "synonyms": [],
+    "sub_requirements": [],
+    "retrieval_text": "authorized user manage records application",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 55,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "FR-02.1",
+    "id_source": "source",
+    "raw_text": "FR-02.1: The system shall allow authorized users to create a new record.",
+    "normalized_text": "The system shall allow authorized users to create a new record.",
+    "type": "functional",
+    "subtype": "interface",
+    "detection_confidence": "high",
+    "detection_reason": "contains a source requirement ID",
+    "candidate_id": "C-0036",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Create New Record",
+    "actor": [
+      "authorized user"
+    ],
+    "actions": [
+      "create a new record"
+    ],
+    "entities": [
+      "record",
+      "system"
+    ],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "authorization",
+      "access control"
+    ],
+    "synonyms": [],
+    "sub_requirements": [],
+    "retrieval_text": "create new record authorized user system",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 56,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "FR-02.2",
+    "id_source": "source",
+    "raw_text": "FR-02.2: The system shall validate required fields before saving a record.",
+    "normalized_text": "validate required fields before saving a record",
+    "type": "functional",
+    "subtype": "data management",
+    "detection_confidence": "high",
+    "detection_reason": "contains a source requirement ID",
+    "candidate_id": "C-0037",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Validate Required Fields",
+    "actor": [
+      "system"
+    ],
+    "actions": [
+      "validate"
+    ],
+    "entities": [
+      "required fields",
+      "record"
+    ],
+    "inputs": [
+      "required fields"
+    ],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "validation",
+      "data integrity"
+    ],
+    "synonyms": [
+      "field validation",
+      "record validation"
+    ],
+    "sub_requirements": [],
+    "retrieval_text": "validate required fields record",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 57,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "FR-02.3",
+    "id_source": "source",
+    "raw_text": "FR-02.3: The system shall allow authorized users to view existing records.",
+    "normalized_text": "The system shall allow authorized users to view existing records.",
+    "type": "functional",
+    "subtype": "interface",
+    "detection_confidence": "high",
+    "detection_reason": "contains a source requirement ID",
+    "candidate_id": "C-0038",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "View Existing Records",
+    "actor": [
+      "authorized users"
+    ],
+    "actions": [
+      "view"
+    ],
+    "entities": [
+      "existing records",
+      "system"
+    ],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "records",
+      "authorization"
+    ],
+    "synonyms": [
+      "view existing records"
+    ],
+    "sub_requirements": [],
+    "retrieval_text": "authorized users view existing records",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 58,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "FR-02.4",
+    "id_source": "source",
+    "raw_text": "FR-02.4: The system shall allow authorized users to modify records they are permitted to change.",
+    "normalized_text": "Authorized users can modify records they have permission to change.",
+    "type": "functional",
+    "subtype": "data management",
+    "detection_confidence": "high",
+    "detection_reason": "contains a source requirement ID",
+    "candidate_id": "C-0039",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Record Modification",
+    "actor": [
+      "user"
+    ],
+    "actions": [
+      "modify"
+    ],
+    "entities": [
+      "record",
+      "user"
+    ],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [
+      "user is authorized"
+    ],
+    "postconditions": [
+      "record is modified"
+    ],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "record",
+      "authorization"
+    ],
+    "synonyms": [],
+    "sub_requirements": [],
+    "retrieval_text": "Authorized user modify record",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 59,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "FR-02.5",
+    "id_source": "source",
+    "raw_text": "FR-02.5: The system shall allow authorized users to delete records when deletion is permitted.",
+    "normalized_text": "authorized users delete records when deletion is permitted",
+    "type": "functional",
+    "subtype": "interface",
+    "detection_confidence": "high",
+    "detection_reason": "contains a source requirement ID",
+    "candidate_id": "C-0040",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Delete Authorized Records",
+    "actor": [
+      "authorized user"
+    ],
+    "actions": [
+      "delete"
+    ],
+    "entities": [
+      "record",
+      "user"
+    ],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [
+      "deletion is permitted"
+    ],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "record management",
+      "deletion permission"
+    ],
+    "synonyms": [
+      "delete",
+      "remove"
+    ],
+    "sub_requirements": [],
+    "retrieval_text": "authorized user delete record when deletion is permitted",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 60,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-024",
+    "id_source": "generated",
+    "raw_text": "The system shall provide users with clear feedback about completed operations and basic information about stored records or system activity.",
+    "normalized_text": "The system shall provide users with clear feedback about completed operations and basic information about stored records or system activity.",
+    "type": "functional",
+    "subtype": "usability",
+    "detection_confidence": "high",
+    "detection_reason": "explicit obligation wording: shall",
+    "candidate_id": "C-0041",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Provide Clear Feedback and Basic Information",
+    "actor": [
+      "user"
+    ],
+    "actions": [
+      "provide feedback",
+      "provide information"
+    ],
+    "entities": [
+      "operations",
+      "records",
+      "system activity"
+    ],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "feedback",
+      "information",
+      "operations",
+      "records"
+    ],
+    "synonyms": [],
+    "sub_requirements": [],
+    "retrieval_text": "users feedback information operations records",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 62,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "FR-03.1",
+    "id_source": "source",
+    "raw_text": "FR-03.1: The system shall display confirmation after a successful operation.",
+    "normalized_text": "The system shall display confirmation after a successful operation.",
+    "type": "functional",
+    "subtype": "interface",
+    "detection_confidence": "high",
+    "detection_reason": "contains a source requirement ID",
+    "candidate_id": "C-0042",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Display Confirmation After Successful Operation",
+    "actor": [
+      "system"
+    ],
+    "actions": [
+      "display confirmation"
+    ],
+    "entities": [
+      "system",
+      "operation",
+      "confirmation"
+    ],
+    "inputs": [
+      "successful operation"
+    ],
+    "outputs": [
+      "confirmation"
+    ],
+    "preconditions": [
+      "successful operation"
+    ],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "operation",
+      "confirmation"
+    ],
+    "synonyms": [],
+    "sub_requirements": [],
+    "retrieval_text": "system display confirmation operation",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 63,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "FR-03.2",
+    "id_source": "source",
+    "raw_text": "FR-03.2: The system shall display meaningful error messages when an operation fails.",
+    "normalized_text": "The system displays meaningful error messages when an operation fails.",
+    "type": "functional",
+    "subtype": "availability",
+    "detection_confidence": "high",
+    "detection_reason": "contains a source requirement ID",
+    "candidate_id": "C-0043",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Error Message Display",
+    "actor": [
+      "system"
+    ],
+    "actions": [
+      "display"
+    ],
+    "entities": [
+      "error message",
+      "operation"
+    ],
+    "inputs": [
+      "operation"
+    ],
+    "outputs": [
+      "error message"
+    ],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "error message",
+      "operation"
+    ],
+    "synonyms": [],
+    "sub_requirements": [],
+    "retrieval_text": "error message operation",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 64,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "FR-03.3",
+    "id_source": "source",
+    "raw_text": "FR-03.3: The system shall provide a basic summary or report of relevant records.",
+    "normalized_text": "The system shall provide a basic summary or report of relevant records.",
+    "type": "functional",
+    "subtype": "data management",
+    "detection_confidence": "high",
+    "detection_reason": "contains a source requirement ID",
+    "candidate_id": "C-0044",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Basic Summary or Report",
+    "actor": [
+      "system"
+    ],
+    "actions": [
+      "provide"
+    ],
+    "entities": [
+      "summary",
+      "report",
+      "records"
+    ],
+    "inputs": [],
+    "outputs": [
+      "summary",
+      "report"
+    ],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "summary",
+      "report",
+      "records"
+    ],
+    "synonyms": [
+      "report",
+      "summary"
+    ],
+    "sub_requirements": [],
+    "retrieval_text": "summary report records",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 65,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "FR-03.4",
+    "id_source": "source",
+    "raw_text": "FR-03.4: The system shall present report information in a readable format.",
+    "normalized_text": "The system shall present report information in a readable format.",
+    "type": "functional",
+    "subtype": "interface",
+    "detection_confidence": "high",
+    "detection_reason": "contains a source requirement ID",
+    "candidate_id": "C-0045",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Present Report Information",
+    "actor": [
+      "system"
+    ],
+    "actions": [
+      "present report information"
+    ],
+    "entities": [
+      "report information"
+    ],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "report",
+      "readable format"
+    ],
+    "synonyms": [
+      "display report information",
+      "show report data"
+    ],
+    "sub_requirements": [],
+    "retrieval_text": "report information readable format system present",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 66,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "FR-03.5",
+    "id_source": "source",
+    "raw_text": "FR-03.5: The system shall ensure that users can only access information permitted by their role.",
+    "normalized_text": "Ensure users can only access permitted information by their role.",
+    "type": "functional",
+    "subtype": "security",
+    "detection_confidence": "high",
+    "detection_reason": "contains a source requirement ID",
+    "candidate_id": "C-0046",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Role-Based Access Control",
+    "actor": [
+      "user"
+    ],
+    "actions": [
+      "access information"
+    ],
+    "entities": [
+      "user",
+      "information",
+      "role"
+    ],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "role-based access control",
+      "authorization"
+    ],
+    "synonyms": [
+      "access control",
+      "permissions"
+    ],
+    "sub_requirements": [],
+    "retrieval_text": "role-based access control, access control, authorization",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 67,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-030",
+    "id_source": "generated",
+    "raw_text": "The system shall provide responsive interaction under normal expected load. Common user actions such as authentication, record retrieval, and submission should normally receive a response within an acceptable time for the deployment environment. The system should avoid unnecessary processing and database operations that could negatively affect responsiveness.",
+    "normalized_text": "The system shall be responsive under normal load.",
+    "type": "non-functional",
+    "subtype": "security",
+    "detection_confidence": "high",
+    "detection_reason": "explicit obligation wording: shall",
+    "candidate_id": "C-0047",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Responsiveness",
+    "actor": [
+      "system",
+      "user"
+    ],
+    "actions": [
+      "provide responsive interaction",
+      "receive a response"
+    ],
+    "entities": [
+      "system",
+      "user",
+      "load",
+      "response",
+      "database"
+    ],
+    "inputs": [
+      "load",
+      "user actions"
+    ],
+    "outputs": [
+      "response"
+    ],
+    "preconditions": [
+      "normal expected load"
+    ],
+    "postconditions": [
+      "response within an acceptable time"
+    ],
+    "conditions": [
+      "avoid unnecessary processing and database operations"
+    ],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "responsiveness",
+      "performance",
+      "user experience"
+    ],
+    "synonyms": [
+      "responsiveness",
+      "performance",
+      "interactivity"
+    ],
+    "sub_requirements": [],
+    "retrieval_text": "responsive system user actions load response",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 70,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "NFR-01.1",
+    "id_source": "source",
+    "raw_text": "NFR-01.1: Normal user requests should receive a response within approximately 3 seconds under expected load.",
+    "normalized_text": "Normal user requests should receive a response within approximately 3 seconds under expected load.",
+    "type": "non-functional",
+    "subtype": "performance",
+    "detection_confidence": "high",
+    "detection_reason": "contains a source requirement ID",
+    "candidate_id": "C-0048",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Response Time",
+    "actor": [
+      "normal user"
+    ],
+    "actions": [
+      "receive response"
+    ],
+    "entities": [
+      "request",
+      "response",
+      "user"
+    ],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [
+      "expected load"
+    ],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "response time",
+      "load"
+    ],
+    "synonyms": [
+      "response time",
+      "load"
+    ],
+    "sub_requirements": [],
+    "retrieval_text": "response time, load, user, request, normal user",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 71,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "NFR-01.2",
+    "id_source": "source",
+    "raw_text": "NFR-01.2: The application should support multiple concurrent users without noticeable degradation under the defined normal workload.",
+    "normalized_text": "application support multiple concurrent users without noticeable degradation under defined normal workload",
+    "type": "non-functional",
+    "subtype": "performance",
+    "detection_confidence": "high",
+    "detection_reason": "contains a source requirement ID",
+    "candidate_id": "C-0049",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Scalability",
+    "actor": [
+      "multiple concurrent users",
+      "application"
+    ],
+    "actions": [
+      "support",
+      "degrade"
+    ],
+    "entities": [
+      "users",
+      "workload"
+    ],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [
+      "defined normal workload"
+    ],
+    "postconditions": [
+      "noticeable degradation"
+    ],
+    "conditions": [],
+    "constraints": [
+      "multiple concurrent users"
+    ],
+    "error_conditions": [],
+    "domain_terms": [
+      "scalability",
+      "concurrency",
+      "performance"
+    ],
+    "synonyms": [
+      "high availability",
+      "load balancing"
+    ],
+    "sub_requirements": [],
+    "retrieval_text": "scalability, concurrency, performance",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 72,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "NFR-01.3",
+    "id_source": "source",
+    "raw_text": "NFR-01.3: Database queries should be designed to retrieve only the information required for the requested operation.",
+    "normalized_text": "Database queries should be designed to retrieve only the information required for the requested operation.",
+    "type": "non-functional",
+    "subtype": "data management",
+    "detection_confidence": "high",
+    "detection_reason": "contains a source requirement ID",
+    "candidate_id": "C-0050",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Optimized Database Queries",
+    "actor": [],
+    "actions": [
+      "be designed to retrieve only information required for requested operation"
+    ],
+    "entities": [],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [
+      "retrieving only necessary information"
+    ],
+    "error_conditions": [],
+    "domain_terms": [
+      "database",
+      "queries",
+      "information retrieval"
+    ],
+    "synonyms": [],
+    "sub_requirements": [],
+    "retrieval_text": "database queries information retrieval",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 73,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-034",
+    "id_source": "generated",
+    "raw_text": "The system shall protect user accounts and application data against unauthorized access and common security risks.",
+    "normalized_text": "",
+    "type": "non-functional",
+    "subtype": "security",
+    "detection_confidence": "high",
+    "detection_reason": "explicit obligation wording: shall",
+    "candidate_id": "C-0051",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Protect User Accounts and Application Data",
+    "actor": [
+      "system"
+    ],
+    "actions": [
+      "protect"
+    ],
+    "entities": [
+      "user accounts",
+      "application data"
+    ],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "security",
+      "access control"
+    ],
+    "synonyms": [],
+    "sub_requirements": [],
+    "retrieval_text": "security access control protect",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 75,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "NFR-02.1",
+    "id_source": "source",
+    "raw_text": "NFR-02.1: Passwords shall not be stored in plain text.",
+    "normalized_text": "Passwords shall not be stored in plain text.",
+    "type": "non-functional",
+    "subtype": "security",
+    "detection_confidence": "high",
+    "detection_reason": "contains a source requirement ID",
+    "candidate_id": "C-0052",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Password Storage Security",
+    "actor": [
+      "system",
+      "organization"
+    ],
+    "actions": [
+      "store",
+      "protect"
+    ],
+    "entities": [
+      "password",
+      "text"
+    ],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [
+      "plaintext storage forbidden"
+    ],
+    "error_conditions": [],
+    "domain_terms": [
+      "password",
+      "security",
+      "plaintext"
+    ],
+    "synonyms": [
+      "plaintext storage forbidden",
+      "password encryption required"
+    ],
+    "sub_requirements": [],
+    "retrieval_text": "password security plaintext storage",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 76,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "NFR-02.2",
+    "id_source": "source",
+    "raw_text": "NFR-02.2: Protected resources shall require successful authentication and authorization.",
+    "normalized_text": "Protected resources require successful authentication and authorization.",
+    "type": "non-functional",
+    "subtype": "security",
+    "detection_confidence": "high",
+    "detection_reason": "contains a source requirement ID",
+    "candidate_id": "C-0053",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Protected Resource Authentication and Authorization",
+    "actor": [
+      "system"
+    ],
+    "actions": [
+      "authenticate",
+      "authorize"
+    ],
+    "entities": [
+      "resources",
+      "user",
+      "credentials"
+    ],
+    "inputs": [
+      "credentials",
+      "resources"
+    ],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [
+      "successful authentication",
+      "successful authorization"
+    ],
+    "error_conditions": [],
+    "domain_terms": [
+      "authentication",
+      "authorization",
+      "access control"
+    ],
+    "synonyms": [
+      "protected resources",
+      "secured resources",
+      "restricted access"
+    ],
+    "sub_requirements": [],
+    "retrieval_text": "protected resources authentication authorization",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 77,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "NFR-02.3",
+    "id_source": "source",
+    "raw_text": "NFR-02.3: User input shall be validated before being processed or stored.",
+    "normalized_text": "User input shall be validated before being processed or stored.",
+    "type": "non-functional",
+    "subtype": "security",
+    "detection_confidence": "high",
+    "detection_reason": "contains a source requirement ID",
+    "candidate_id": "C-0054",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Input Validation",
+    "actor": [
+      "user"
+    ],
+    "actions": [
+      "validate"
+    ],
+    "entities": [
+      "user input"
+    ],
+    "inputs": [
+      "user input"
+    ],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "input",
+      "validation",
+      "processing",
+      "storage"
+    ],
+    "synonyms": [
+      "validation",
+      "sanitization",
+      "authentication"
+    ],
+    "sub_requirements": [],
+    "retrieval_text": "validate user input",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 78,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "NFR-02.4",
+    "id_source": "source",
+    "raw_text": "NFR-02.4: Sensitive communication should use secure transport such as HTTPS in production.",
+    "normalized_text": "Sensitive communication should use secure transport such as HTTPS in production.",
+    "type": "non-functional",
+    "subtype": "security",
+    "detection_confidence": "high",
+    "detection_reason": "contains a source requirement ID",
+    "candidate_id": "C-0055",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Use Secure Transport",
+    "actor": [
+      "system"
+    ],
+    "actions": [
+      "use secure transport"
+    ],
+    "entities": [
+      "communication",
+      "transport",
+      "HTTPS"
+    ],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [
+      "in production"
+    ],
+    "error_conditions": [],
+    "domain_terms": [
+      "security",
+      "HTTPS",
+      "communication"
+    ],
+    "synonyms": [
+      "secure communication",
+      "HTTPS"
+    ],
+    "sub_requirements": [],
+    "retrieval_text": "secure transport HTTPS production",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 79,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "NFR-02.5",
+    "id_source": "source",
+    "raw_text": "NFR-02.5: The system shall not expose sensitive information through normal error messages.",
+    "normalized_text": "The system shall not expose sensitive information through normal error messages.",
+    "type": "non-functional",
+    "subtype": "security",
+    "detection_confidence": "high",
+    "detection_reason": "contains a source requirement ID",
+    "candidate_id": "C-0056",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Sensitive Information Protection",
+    "actor": [
+      "system"
+    ],
+    "actions": [
+      "not expose sensitive information through normal error messages"
+    ],
+    "entities": [],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [
+      "sensitive information",
+      "error messages"
+    ],
+    "error_conditions": [
+      "exposure of sensitive information"
+    ],
+    "domain_terms": [
+      "security",
+      "confidentiality"
+    ],
+    "synonyms": [],
+    "sub_requirements": [],
+    "retrieval_text": "sensitive information error messages security confidentiality",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 80,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-040",
+    "id_source": "generated",
+    "raw_text": "The interface shall provide clear navigation, readable labels, consistent controls, and understandable feedback. Forms shall identify required fields and provide validation feedback when submitted information is missing or invalid.",
+    "normalized_text": "The interface shall provide clear navigation, readable labels, consistent controls, and understandable feedback. Forms shall identify required fields and provide validation feedback when submitted information is missing or invalid.",
+    "type": "non-functional",
+    "subtype": "usability",
+    "detection_confidence": "high",
+    "detection_reason": "explicit obligation wording: shall",
+    "candidate_id": "C-0057",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Usable Interface",
+    "actor": [
+      "user"
+    ],
+    "actions": [
+      "provide navigation",
+      "provide labels",
+      "provide controls",
+      "provide feedback"
+    ],
+    "entities": [
+      "interface",
+      "forms",
+      "fields",
+      "information"
+    ],
+    "inputs": [
+      "information",
+      "required fields"
+    ],
+    "outputs": [
+      "validation feedback"
+    ],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "interface",
+      "usability",
+      "navigation",
+      "labels",
+      "controls",
+      "feedback"
+    ],
+    "synonyms": [
+      "clear navigation",
+      "readable labels",
+      "consistent controls",
+      "understandable feedback"
+    ],
+    "sub_requirements": [],
+    "retrieval_text": "clear navigation readable labels consistent controls understandable feedback",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 83,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-041",
+    "id_source": "generated",
+    "raw_text": "The application may communicate with a database through a backend service or API. If external services are required, the system shall use documented interfaces and handle unavailable services gracefully.",
+    "normalized_text": "",
+    "type": "functional",
+    "subtype": "availability",
+    "detection_confidence": "high",
+    "detection_reason": "explicit obligation wording: shall",
+    "candidate_id": "C-0058",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Database Communication",
+    "actor": [
+      "system"
+    ],
+    "actions": [
+      "communicate with database",
+      "use documented interfaces",
+      "handle unavailable services"
+    ],
+    "entities": [
+      "database",
+      "backend service",
+      "API",
+      "external services"
+    ],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [
+      "documented interfaces",
+      "handle unavailable services"
+    ],
+    "error_conditions": [],
+    "domain_terms": [
+      "database",
+      "backend service",
+      "API",
+      "external services"
+    ],
+    "synonyms": [
+      "API, backend service"
+    ],
+    "sub_requirements": [],
+    "retrieval_text": "communicate database backend service API external services",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 85,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-042",
+    "id_source": "generated",
+    "raw_text": "No specialized hardware is required for the basic system. Users are expected to interact through standard computing devices such as laptops, desktops, tablets, or smartphones.",
+    "normalized_text": "No specialized hardware is required. Users interact with standard computing devices.",
+    "type": "functional",
+    "subtype": "interface",
+    "detection_confidence": "medium",
+    "detection_reason": "capability or expected behavior wording: are expected to",
+    "candidate_id": "C-0059",
+    "candidate_decision": "keep",
+    "candidate_confidence": "medium",
+    "candidate_reason": "States an actionable instruction to ensure no specialized hardware is required for the basic system.",
+    "review_required": true,
+    "title": "No Specialized Hardware Required",
+    "actor": [
+      "user"
+    ],
+    "actions": [
+      "interact"
+    ],
+    "entities": [
+      "hardware",
+      "computing devices"
+    ],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "hardware",
+      "computing devices"
+    ],
+    "synonyms": [
+      "standard hardware",
+      "common computing devices"
+    ],
+    "sub_requirements": [],
+    "retrieval_text": "no specialized hardware user interact standard computing devices",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 87,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-043",
+    "id_source": "generated",
+    "raw_text": "For a web-based deployment, communication between the client and server shall use standard HTTP-based protocols, with HTTPS recommended for production use.",
+    "normalized_text": "Use standard HTTP-based protocols for communication between client and server, and HTTPS for production use.",
+    "type": "non-functional",
+    "subtype": "security",
+    "detection_confidence": "high",
+    "detection_reason": "explicit obligation wording: shall",
+    "candidate_id": "C-0060",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Secure Communication Protocol",
+    "actor": [],
+    "actions": [
+      "use standard http-based protocols"
+    ],
+    "entities": [],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "https",
+      "http",
+      "communication",
+      "protocol"
+    ],
+    "synonyms": [
+      "http",
+      "https",
+      "secure communication",
+      "protocol"
+    ],
+    "sub_requirements": [],
+    "retrieval_text": "http https secure communication",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 89,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-044",
+    "id_source": "generated",
+    "raw_text": "The system must operate within the resources available in the selected deployment environment.",
+    "normalized_text": "The system must operate within the resources available in the selected deployment environment.",
+    "type": "non-functional",
+    "subtype": "availability",
+    "detection_confidence": "high",
+    "detection_reason": "explicit obligation wording: must",
+    "candidate_id": "C-0061",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Operate Within Deployment Resources",
+    "actor": [
+      "system"
+    ],
+    "actions": [
+      "operate"
+    ],
+    "entities": [
+      "system",
+      "deployment",
+      "resources"
+    ],
+    "inputs": [
+      "deployment environment"
+    ],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [
+      "operate within resources available in deployment environment"
+    ],
+    "error_conditions": [],
+    "domain_terms": [
+      "deployment",
+      "resources",
+      "environment"
+    ],
+    "synonyms": [],
+    "sub_requirements": [],
+    "retrieval_text": "deployment resources system",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 91,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-045",
+    "id_source": "generated",
+    "raw_text": "Only authorized users may access protected functionality.",
+    "normalized_text": "Only authorized users may access protected functionality.",
+    "type": "functional",
+    "subtype": "security",
+    "detection_confidence": "medium",
+    "detection_reason": "capability or expected behavior wording: may",
+    "candidate_id": "C-0062",
+    "candidate_decision": "keep",
+    "candidate_confidence": "medium",
+    "candidate_reason": "States an actionable instruction to ensure only authorized users may access protected functionality.",
+    "review_required": true,
+    "title": "Authorization for Protected Functionality",
+    "actor": [
+      "authorized user"
+    ],
+    "actions": [
+      "access"
+    ],
+    "entities": [
+      "protected functionality",
+      "user"
+    ],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [
+      "authorization"
+    ],
+    "error_conditions": [],
+    "domain_terms": [
+      "authorization",
+      "access control"
+    ],
+    "synonyms": [],
+    "sub_requirements": [],
+    "retrieval_text": "authorization protected functionality access",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 92,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-046",
+    "id_source": "generated",
+    "raw_text": "The database schema shall remain consistent with the application's data model.",
+    "normalized_text": "",
+    "type": "functional",
+    "subtype": "data management",
+    "detection_confidence": "high",
+    "detection_reason": "explicit obligation wording: shall",
+    "candidate_id": "C-0063",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Database Schema Consistency",
+    "actor": [
+      "database"
+    ],
+    "actions": [
+      "remain consistent"
+    ],
+    "entities": [
+      "database",
+      "schema",
+      "application",
+      "data model"
+    ],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "database",
+      "schema",
+      "data model"
+    ],
+    "synonyms": [],
+    "sub_requirements": [],
+    "retrieval_text": "database schema consistency application data model",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 93,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-047",
+    "id_source": "generated",
+    "raw_text": "Changes to external APIs may require corresponding application updates.",
+    "normalized_text": "Changes to external APIs may require corresponding application updates.",
+    "type": "non-functional",
+    "subtype": "interface",
+    "detection_confidence": "medium",
+    "detection_reason": "capability or expected behavior wording: may",
+    "candidate_id": "C-0064",
+    "candidate_decision": "keep",
+    "candidate_confidence": "medium",
+    "candidate_reason": "States an actionable instruction to ensure changes to external APIs may require corresponding application updates.",
+    "review_required": true,
+    "title": "Update Application",
+    "actor": [],
+    "actions": [],
+    "entities": [
+      "API",
+      "application"
+    ],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "API",
+      "application",
+      "update"
+    ],
+    "synonyms": [],
+    "sub_requirements": [],
+    "retrieval_text": "Changes update application API",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 94,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-048",
+    "id_source": "generated",
+    "raw_text": "The system shall maintain accurate and consistent records required by its functional features. Typical data may include user account information, authentication-related data, application records, timestamps, and status information.",
+    "normalized_text": "The system shall maintain accurate and consistent records required by its functional features.",
+    "type": "functional",
+    "subtype": "data management",
+    "detection_confidence": "high",
+    "detection_reason": "explicit obligation wording: shall",
+    "candidate_id": "C-0066",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Maintain Accurate and Consistent Records",
+    "actor": [
+      "system"
+    ],
+    "actions": [
+      "maintain records"
+    ],
+    "entities": [
+      "records",
+      "user account information",
+      "authentication-related data",
+      "application records",
+      "timestamps",
+      "status information"
+    ],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "records",
+      "user account information",
+      "authentication",
+      "application records"
+    ],
+    "synonyms": [
+      "data management",
+      "data consistency"
+    ],
+    "sub_requirements": [],
+    "retrieval_text": "accurate consistent records user account information authentication application records timestamps status",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 97,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-049",
+    "id_source": "generated",
+    "raw_text": "Required fields shall be validated before persistence.",
+    "normalized_text": "Required fields shall be validated before persistence.",
+    "type": "functional",
+    "subtype": "data management",
+    "detection_confidence": "high",
+    "detection_reason": "explicit obligation wording: shall",
+    "candidate_id": "C-0067",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Validate Required Fields",
+    "actor": [
+      "user"
+    ],
+    "actions": [
+      "validate"
+    ],
+    "entities": [
+      "required fields"
+    ],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "validation"
+    ],
+    "synonyms": [
+      "field validation"
+    ],
+    "sub_requirements": [],
+    "retrieval_text": "validate required fields",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 98,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-050",
+    "id_source": "generated",
+    "raw_text": "Records shall have a unique identifier where appropriate.",
+    "normalized_text": "Records shall have a unique identifier where appropriate.",
+    "type": "functional",
+    "subtype": "data management",
+    "detection_confidence": "high",
+    "detection_reason": "explicit obligation wording: shall",
+    "candidate_id": "C-0068",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Unique Record Identifier",
+    "actor": [
+      "system"
+    ],
+    "actions": [
+      "create",
+      "assign"
+    ],
+    "entities": [
+      "record",
+      "identifier"
+    ],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [
+      "uniqueness"
+    ],
+    "error_conditions": [],
+    "domain_terms": [
+      "record",
+      "identifier",
+      "uniqueness"
+    ],
+    "synonyms": [],
+    "sub_requirements": [],
+    "retrieval_text": "unique record identifier",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 99,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-051",
+    "id_source": "generated",
+    "raw_text": "Data shall be stored using a persistent storage mechanism.",
+    "normalized_text": "Data shall be stored using a persistent storage mechanism.",
+    "type": "functional",
+    "subtype": "data management",
+    "detection_confidence": "high",
+    "detection_reason": "explicit obligation wording: shall",
+    "candidate_id": "C-0069",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Persistent Data Storage",
+    "actor": [
+      "system"
+    ],
+    "actions": [
+      "store data"
+    ],
+    "entities": [
+      "data",
+      "storage mechanism"
+    ],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "persistent storage",
+      "data management"
+    ],
+    "synonyms": [],
+    "sub_requirements": [],
+    "retrieval_text": "persistent data storage mechanism",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 100,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-052",
+    "id_source": "generated",
+    "raw_text": "Access to stored data shall follow user authorization rules.",
+    "normalized_text": "Access to stored data should follow user authorization rules.",
+    "type": "non-functional",
+    "subtype": "security",
+    "detection_confidence": "high",
+    "detection_reason": "explicit obligation wording: shall",
+    "candidate_id": "C-0070",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Data Access Authorization",
+    "actor": [
+      "user"
+    ],
+    "actions": [
+      "follow"
+    ],
+    "entities": [
+      "stored data",
+      "user"
+    ],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "authorization",
+      "access control"
+    ],
+    "synonyms": [
+      "user authentication",
+      "data protection"
+    ],
+    "sub_requirements": [],
+    "retrieval_text": "access stored data authorization user",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 101,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-053",
+    "id_source": "generated",
+    "raw_text": "Invalid or incomplete records shall not be accepted as valid application data.",
+    "normalized_text": "Invalid or incomplete records shall not be accepted as valid application data.",
+    "type": "functional",
+    "subtype": "data management",
+    "detection_confidence": "high",
+    "detection_reason": "explicit obligation wording: shall",
+    "candidate_id": "C-0071",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Invalid or Incomplete Records Validation",
+    "actor": [
+      "user",
+      "system"
+    ],
+    "actions": [
+      "accept application data"
+    ],
+    "entities": [
+      "application data",
+      "records"
+    ],
+    "inputs": [
+      "application data"
+    ],
+    "outputs": [
+      "validation result"
+    ],
+    "preconditions": [
+      "application data is provided"
+    ],
+    "postconditions": [
+      "invalid or incomplete records are rejected"
+    ],
+    "conditions": [
+      "application data is valid or complete"
+    ],
+    "constraints": [
+      "application data must meet requirements"
+    ],
+    "error_conditions": [
+      "application data is invalid or incomplete"
+    ],
+    "domain_terms": [
+      "data validation",
+      "record validation",
+      "application data integrity"
+    ],
+    "synonyms": [
+      "invalid record",
+      "incomplete record",
+      "valid data",
+      "invalid data"
+    ],
+    "sub_requirements": [],
+    "retrieval_text": "invalid record, incomplete record, valid data, application data integrity",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 102,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-054",
+    "id_source": "generated",
+    "raw_text": "The system shall be considered acceptable when the following conditions are satisfied:",
+    "normalized_text": "The system is considered acceptable when the conditions are satisfied.",
+    "type": "non-functional",
+    "subtype": "acceptability",
+    "detection_confidence": "high",
+    "detection_reason": "explicit obligation wording: shall",
+    "candidate_id": "C-0072",
+    "candidate_decision": "keep",
+    "candidate_confidence": "high",
+    "candidate_reason": "Fast path: strong requirement signal",
+    "review_required": false,
+    "title": "Acceptability Criteria",
+    "actor": [
+      "system"
+    ],
+    "actions": [
+      "be considered acceptable"
+    ],
+    "entities": [
+      "system"
+    ],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [
+      "conditions are satisfied"
+    ],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "system"
+    ],
+    "synonyms": [],
+    "sub_requirements": [],
+    "retrieval_text": "",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 104,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-055",
+    "id_source": "generated",
+    "raw_text": "A valid user can authenticate successfully and an invalid user is denied access.",
+    "normalized_text": "A valid user can authenticate successfully and an invalid user is denied access.",
+    "type": "functional",
+    "subtype": "general",
+    "detection_confidence": "medium",
+    "detection_reason": "capability or expected behavior wording: can",
+    "candidate_id": "C-0073",
+    "candidate_decision": "keep",
+    "candidate_confidence": "medium",
+    "candidate_reason": "The text states that a valid user can authenticate successfully and an invalid user is denied access.",
+    "review_required": true,
+    "title": "User Authentication",
+    "actor": [
+      "user"
+    ],
+    "actions": [
+      "authenticate"
+    ],
+    "entities": [
+      "user"
+    ],
+    "inputs": [
+      "username",
+      "password"
+    ],
+    "outputs": [
+      "access",
+      "error message"
+    ],
+    "preconditions": [
+      "user has account"
+    ],
+    "postconditions": [
+      "valid user gains access",
+      "invalid user is denied access"
+    ],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [
+      "invalid username or password"
+    ],
+    "domain_terms": [
+      "authentication",
+      "authorization"
+    ],
+    "synonyms": [
+      "login",
+      "login process"
+    ],
+    "sub_requirements": [
+      "A valid user can enter their username and password.",
+      "A valid user can submit their login credentials."
+    ],
+    "retrieval_text": "user authenticate login credentials access error message",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 105,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-056",
+    "id_source": "generated",
+    "raw_text": "An authorized user can create, view, update, and delete permitted records.",
+    "normalized_text": "Authorized user can create view update and delete permitted records.",
+    "type": "functional",
+    "subtype": "interface",
+    "detection_confidence": "medium",
+    "detection_reason": "capability or expected behavior wording: can",
+    "candidate_id": "C-0074",
+    "candidate_decision": "keep",
+    "candidate_confidence": "medium",
+    "candidate_reason": "The text states that an authorized user can create, view, update, and delete permitted records.",
+    "review_required": true,
+    "title": "Create, View, Update, and Delete Records",
+    "actor": [
+      "authorized user"
+    ],
+    "actions": [
+      "create",
+      "view",
+      "update",
+      "delete"
+    ],
+    "entities": [
+      "records"
+    ],
+    "inputs": [
+      "permitted records"
+    ],
+    "outputs": [],
+    "preconditions": [
+      "authorized user"
+    ],
+    "postconditions": [
+      "permitted records created, viewed, updated, or deleted"
+    ],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "record",
+      "authorization"
+    ],
+    "synonyms": [
+      "create: make",
+      "view: see",
+      "update: modify",
+      "delete: remove"
+    ],
+    "sub_requirements": [],
+    "retrieval_text": "authorized user create view update delete records",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 106,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-057",
+    "id_source": "generated",
+    "raw_text": "The performance requirement is met under the agreed normal workload.",
+    "normalized_text": "",
+    "type": "non-functional",
+    "subtype": "performance",
+    "detection_confidence": "medium",
+    "detection_reason": "contains a non-functional quality attribute or measurable target",
+    "candidate_id": "C-0077",
+    "candidate_decision": "keep",
+    "candidate_confidence": "medium",
+    "candidate_reason": "The text states that the performance requirement is met under the agreed normal workload.",
+    "review_required": true,
+    "title": "Performance Requirement",
+    "actor": [],
+    "actions": [],
+    "entities": [],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [],
+    "synonyms": [],
+    "sub_requirements": [],
+    "retrieval_text": "",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 109,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-058",
+    "id_source": "generated",
+    "raw_text": "The security requirements are implemented and verified through appropriate testing.",
+    "normalized_text": "security requirements are implemented and verified through appropriate testing",
+    "type": "non-functional",
+    "subtype": "availability",
+    "detection_confidence": "medium",
+    "detection_reason": "contains a non-functional quality attribute or measurable target",
+    "candidate_id": "C-0078",
+    "candidate_decision": "keep",
+    "candidate_confidence": "medium",
+    "candidate_reason": "The text states that the security requirements are implemented and verified through appropriate testing.",
+    "review_required": true,
+    "title": "Security Requirement Verification",
+    "actor": [],
+    "actions": [],
+    "entities": [],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "security",
+      "testing"
+    ],
+    "synonyms": [],
+    "sub_requirements": [],
+    "retrieval_text": "",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 110,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-059",
+    "id_source": "generated",
+    "raw_text": "Unexpected increases in user traffic may affect performance.",
+    "normalized_text": "Unexpected increases in user traffic may affect performance.",
+    "type": "non-functional",
+    "subtype": "availability",
+    "detection_confidence": "medium",
+    "detection_reason": "contains a non-functional quality attribute or measurable target",
+    "candidate_id": "C-0079",
+    "candidate_decision": "keep",
+    "candidate_confidence": "medium",
+    "candidate_reason": "The text states that unexpected increases in user traffic may affect performance.",
+    "review_required": true,
+    "title": "Performance Under Load",
+    "actor": [
+      "user"
+    ],
+    "actions": [],
+    "entities": [
+      "traffic",
+      "performance"
+    ],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "performance",
+      "load"
+    ],
+    "synonyms": [
+      "traffic volume",
+      "user load"
+    ],
+    "sub_requirements": [],
+    "retrieval_text": "traffic, performance",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 113,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-060",
+    "id_source": "generated",
+    "raw_text": "Third-party service failures may affect dependent functionality.",
+    "normalized_text": "Third-party service failures may affect dependent functionality.",
+    "type": "non-functional",
+    "subtype": "availability",
+    "detection_confidence": "medium",
+    "detection_reason": "capability or expected behavior wording: may",
+    "candidate_id": "C-0080",
+    "candidate_decision": "keep",
+    "candidate_confidence": "medium",
+    "candidate_reason": "The text states that incorrect user input may lead to invalid application data if validation is incomplete.",
+    "review_required": true,
+    "title": "Third-Party Service Failure Impact",
+    "actor": [
+      "third-party service",
+      "dependent system"
+    ],
+    "actions": [
+      "fail"
+    ],
+    "entities": [
+      "third-party service",
+      "dependent functionality"
+    ],
+    "inputs": [
+      "failure of third-party service"
+    ],
+    "outputs": [
+      "affect on dependent functionality"
+    ],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [
+      "third-party service",
+      "dependent functionality"
+    ],
+    "synonyms": [
+      "third-party service failure",
+      "dependent system failure"
+    ],
+    "sub_requirements": [],
+    "retrieval_text": "third-party service failure dependent functionality",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 114,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "REQ-061",
+    "id_source": "generated",
+    "raw_text": "Incorrect user input may lead to invalid application data if validation is incomplete.",
+    "normalized_text": "Invalid user input may lead to invalid application data if validation is incomplete.",
+    "type": "non-functional",
+    "subtype": "data management",
+    "detection_confidence": "medium",
+    "detection_reason": "capability or expected behavior wording: may",
+    "candidate_id": "C-0081",
+    "candidate_decision": "keep",
+    "candidate_confidence": "medium",
+    "candidate_reason": "The text states that configuration or deployment errors may expose security vulnerabilities.",
+    "review_required": true,
+    "title": "Incomplete Validation",
+    "actor": [
+      "user"
+    ],
+    "actions": [
+      "input"
+    ],
+    "entities": [
+      "user input",
+      "application data"
+    ],
+    "inputs": [
+      "invalid user input"
+    ],
+    "outputs": [
+      "invalid application data"
+    ],
+    "preconditions": [
+      "incomplete validation"
+    ],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [
+      "invalid user input"
+    ],
+    "domain_terms": [
+      "validation"
+    ],
+    "synonyms": [
+      "incomplete validation",
+      "invalid user input"
+    ],
+    "sub_requirements": [],
+    "retrieval_text": "user input, application data, validation",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": 115,
+      "table": null,
+      "row": null,
+      "column": null
+    }
+  },
+  {
+    "requirement_id": "FR-03",
+    "id_source": "source",
+    "raw_text": "System Feedback and Reporting",
+    "normalized_text": "System feedback and reporting",
+    "type": "functional",
+    "subtype": "interface",
+    "detection_confidence": "medium",
+    "detection_reason": "text is associated with an explicitly labeled requirement row",
+    "candidate_id": "C-0089",
+    "candidate_decision": "keep",
+    "candidate_confidence": "medium",
+    "candidate_reason": "The text is associated with the 'System Feedback and Reporting' requirement in the labeled requirement row.",
+    "review_required": true,
+    "title": "System Feedback and Reporting",
+    "actor": [
+      "system"
+    ],
+    "actions": [
+      "provide feedback"
+    ],
+    "entities": [],
+    "inputs": [],
+    "outputs": [],
+    "preconditions": [],
+    "postconditions": [],
+    "conditions": [],
+    "constraints": [],
+    "error_conditions": [],
+    "domain_terms": [],
+    "synonyms": [],
+    "sub_requirements": [],
+    "retrieval_text": "system feedback reporting",
+    "source": {
+      "document_id": null,
+      "file_name": "Basic_SRS_Document.docx",
+      "section": null,
+      "subsection": null,
+      "page": null,
+      "paragraph": null,
+      "table": 2,
+      "row": 4,
+      "column": 3
+    }
+  }
+]
