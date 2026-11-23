@@ -123,6 +123,33 @@ class TestContext:
         assert quote_overlap("send_email()", "return late") == 0.0
 
 
+def _captured_payload(client):
+    sent = {}
+
+    class _Resp:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return json.dumps({"message": {"content": '{"ok": true}'}}).encode()
+
+    def fake_urlopen(req, timeout):
+        sent.update(json.loads(req.data.decode()))
+        return _Resp()
+
+    with patch("urllib.request.urlopen", fake_urlopen):
+        assert client.chat_json("s", "u", {"type": "object"}) == {"ok": True}
+    return sent
+
+
+def test_ollama_think_flag_sent_only_when_set():
+    assert "think" not in _captured_payload(OllamaClient("m", host="http://x"))
+    assert _captured_payload(OllamaClient("m", host="http://x", think=False))["think"] is False
+
+
 def test_ollama_unreachable_raises_llm_error_quickly():
     client = OllamaClient("qwen2.5-coder:7b", host="http://127.0.0.1:9", timeout=2, retries=0)
     with pytest.raises(LLMError):

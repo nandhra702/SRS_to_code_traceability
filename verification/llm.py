@@ -52,6 +52,7 @@ class OllamaClient:
         seed: int = 42,
         timeout: float = 300.0,
         retries: int = 2,
+        think: bool | None = None,
     ) -> None:
         self.model = model or os.getenv("VERIFIER_MODEL", DEFAULT_MODEL)
         self.host = (host or os.getenv("OLLAMA_HOST", "http://localhost:11434")).rstrip("/")
@@ -60,6 +61,9 @@ class OllamaClient:
         self.seed = seed
         self.timeout = timeout
         self.retries = retries
+        # Thinking models (e.g. qwen3): False disables the hidden reasoning
+        # pass. None sends nothing, so other models are unaffected.
+        self.think = think
 
     def chat_json(self, system: str, user: str, schema: Dict[str, Any]) -> Dict[str, Any]:
         payload = {
@@ -70,6 +74,8 @@ class OllamaClient:
             "format": schema,
             "options": {"temperature": self.temperature, "seed": self.seed, "num_ctx": self.num_ctx},
         }
+        if self.think is not None:
+            payload["think"] = self.think
         body = json.dumps(payload).encode("utf-8")
         last_error: Exception | None = None
         for attempt in range(1, self.retries + 2):
