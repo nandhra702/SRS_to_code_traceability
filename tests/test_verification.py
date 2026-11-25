@@ -339,6 +339,83 @@ class TestVerifier:
                                                       pipeline_version="verification-v1")["FR-002"]["rationale"]
 
 
+class SchemaLLM(FakeLLM):
+    """FakeLLM that also records the system prompt and schema of each call."""
+
+    def __init__(self, replies):
+        super().__init__(replies)
+        self.systems, self.schemas = [], []
+
+    def chat_json(self, system, user, schema):
+        self.systems.append(system)
+        self.schemas.append(schema)
+        return super().chat_json(system, user, schema)
+
+
+@requires_pg
+class TestBehavioralPrompt:
+
+    def test_behavioral_prompt_asks_for_behaviour_first_and_keeps_the_citation_rule(self, world):
+        s, res, _ = world
+        reply = {"claims": [
+            {"claim_index": 1, "code_behaviour": "Returns 0.0 when late <= 2.", "verdict": "supported",
+             "evidence": [cite("C1", 7, 8, "if late <= 2:")], "rationale": "same behaviour"},
+            {"claim_index": 2, "code_behaviour": "Rounds late * 0.5 to 2 decimals.", "verdict": "supported",
+             "evidence": [], "rationale": "no citation"}], "summary": "ok"}
+        llm = SchemaLLM([reply])
+        rep = Verifier(s, res, llm, VerifierConfig(prompt="behavioral", claim_splitting="rules")).run(
+            "d", requirement_ids=["FR-022"], pipeline_version="verification-exp")
+        props = list(llm.schemas[0]["properties"]["claims"]["items"]["properties"])
+        assert props.index("code_behaviour") < props.index("verdict")
+        assert "BEHAVIOUR" in llm.systems[0] and "code_behaviour" in llm.prompts[0]
+        r = rep["per_requirement"][0]
+        assert rep["prompt_version"] == "verify-v2.3-bc"
+        assert r["claims"][0]["code_behaviour"] == "Returns 0.0 when late <= 2."
+        assert r["claims"][1]["verdict"] == "insufficient_evidence"       # still needs a valid citation
+        assert r["status"] == "partially_supported"
+        req_row = next(x for x in rows(s) if x["link_pk"] is None)
+        assert req_row["prompt_version"] == "verify-v2.3-bc" and req_row["pipeline_version"] == "verification-exp"
+
+    def test_strict_is_the_default(self, world):
+        s, res, _ = world
+        llm = SchemaLLM([judgement(("not_supported", []), ("not_supported", []))])
+        rep = Verifier(s, res, llm, VerifierConfig(claim_splitting="rules")).run("d", requirement_ids=["FR-022"])
+        assert rep["prompt_version"] == "verify-v2.3" and "code_behaviour" not in llm.prompts[0]
+
+    def test_unknown_prompt_is_rejected(self, world):
+        s, res, _ = world
+        with pytest.raises(ValueError):
+            Verifier(s, res, FakeLLM([]), VerifierConfig(prompt="nope"))
+
+    def test_experiments_can_leave_link_statuses_untouched(self, world):
+        s, res, _ = world
+        before = links(s)
+        llm = FakeLLM([judgement(("supported", [cite("C1", 7, 8, "if late <= 2:")]),
+                                 ("supported", [cite("C1", 9, 9, "round(late * 0.5, 2)")]))])
+        rep = Verifier(s, res, llm, VerifierConfig(update_link_status=False)).run(
+            "d", requirement_ids=["FR-022"], pipeline_version="verification-exp")
+        assert rep["per_requirement"][0]["status"] == "supported"
+        assert links(s) == before                                       # app view unchanged
+        assert s.latest_verifications(document_pk=res.document_pk("d"),
+                                      pipeline_version="verification-exp")["FR-022"]["status"] == "supported"
+        assert s.latest_verifications(document_pk=res.document_pk("d"), pipeline_version="verification-v1") == {}
+
+
+@requires_pg
+def test_cli_verify_prompt_and_think_options(world, capsys):
+    from traceability import cli
+    s, _, _ = world
+    fake = FakeLLM([judgement(("not_supported", []), ("not_supported", []))])
+    with patch.object(cli, "TraceabilityConfig", return_value=s._cfg), \
+         patch("traceability.verification.OllamaClient", return_value=fake) as client:
+        assert cli.main(["verify", "--document-id", "d", "--requirements", "FR-022", "--model", "m:14b",
+                         "--prompt", "behavioral", "--think", "off", "--ollama-host", "http://h:1",
+                         "--keep-link-status", "--pipeline-version", "verification-exp", "--claims", "rules"]) == 0
+    assert client.call_args.args == ("m:14b", "http://h:1") and client.call_args.kwargs == {"think": False}
+    assert "verify-v2.3-bc" in capsys.readouterr().out
+    assert links(s) == {"fines.calculate_fine": "pending_verification", "loan.Loan": "pending_verification"}
+
+
 @requires_pg
 def test_evaluate_verification_scores(world):
     from traceability.evaluation import Evaluator

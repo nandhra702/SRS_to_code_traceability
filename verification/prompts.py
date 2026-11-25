@@ -106,6 +106,86 @@ def verify_prompt(req: Dict[str, Any], claims: List[str], context_text: str) -> 
 
 
 # ---------------------------------------------------------------------------
+# Step 2, "behavioral" variant (experiment E3)
+#
+# The strict prompt above leans towards rejecting correct code (V1: 13 of 29
+# implemented requirements rejected although their gold code was shown). This
+# variant first makes the model state what the shown code actually DOES, then
+# compare that behaviour with the claim (behavioral comparison, cf. the
+# over-correction study, arXiv 2508.12358). The evidence rules are unchanged:
+# "supported" still needs a quote-anchored citation, which the verifier checks.
+# ---------------------------------------------------------------------------
+
+BEHAVIORAL_PROMPT_VERSION = "verify-v2.3-bc"
+
+VERIFY_SYSTEM_BEHAVIORAL = """You are a software verification agent. You decide whether source code implements requirement claims by comparing BEHAVIOUR.
+
+Method, for each claim:
+1. code_behaviour: describe in one or two plain sentences what the relevant shown code actually does (inputs, checks, values, results). Describe only what is in the code.
+2. Compare that behaviour with the claim. Ask: would a user or tester observe the behaviour the claim describes when this code runs?
+3. Choose the verdict.
+
+Verdicts:
+- "supported": the shown code performs the claimed behaviour, including any stated values, limits or conditions. Different names, structure, or framework mechanisms (forms, decorators, ORM queries, library calls) still count when the observable behaviour matches. The behaviour may be spread over several shown components.
+- "not_supported": the relevant code is shown but its behaviour differs from the claim (a missing check, a different value, a step that never happens).
+- "insufficient_evidence": the code needed to decide is not shown.
+
+Rules:
+- Judge ONLY from the source code shown. Each component has a tag like [C1] and numbered lines.
+- Docstrings are documentation written by another tool. They are NOT evidence. If a docstring and the code disagree, the code wins.
+- The code must act on the SAME thing the claim is about. A similar check on a different object or feature does not count.
+- Do not reject code for details the claim does not ask for (error messages, logging, UI wording, extra features, code style).
+- Every "supported" verdict MUST cite at least one line range from a shown component and quote the key code from those lines exactly: {"component": "C2", "start_line": 41, "end_line": 43, "quote": "if fine > 0:"}. Only cite line numbers that appear in the listing.
+- Search-ranking or similarity is not evidence."""
+
+VERIFY_SCHEMA_BEHAVIORAL: Dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "claims": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                # code_behaviour comes before verdict: the model describes, then decides.
+                "properties": {
+                    "claim_index": {"type": "integer"},
+                    "code_behaviour": {"type": "string"},
+                    "verdict": VERIFY_SCHEMA["properties"]["claims"]["items"]["properties"]["verdict"],
+                    "evidence": VERIFY_SCHEMA["properties"]["claims"]["items"]["properties"]["evidence"],
+                    "rationale": {"type": "string"},
+                },
+                "required": ["claim_index", "code_behaviour", "verdict", "evidence", "rationale"],
+            },
+        },
+        "summary": {"type": "string"},
+    },
+    "required": ["claims", "summary"],
+}
+
+
+def verify_prompt_behavioral(req: Dict[str, Any], claims: List[str], context_text: str) -> str:
+    numbered = "\n".join(f"  {i}. {c}" for i, c in enumerate(claims, start=1))
+    return (
+        f"Requirement {req['requirement_id']}: {req.get('title') or ''}\n"
+        f"Text: {req['raw_text']}\n\n"
+        f"Claims to verify:\n{numbered}\n\n"
+        f"Source code (the only evidence you may use):\n\n{context_text}\n\n"
+        "For EVERY claim (claim_index 1.." f"{len(claims)}) first describe what the relevant code does "
+        "(code_behaviour), then give the verdict, the cited line ranges and a one-sentence rationale "
+        "comparing the behaviour with the claim. Then a one-sentence summary.\n"
+        'Return JSON: {"claims": [{"claim_index": 1, "code_behaviour": "...", "verdict": "...", "evidence": '
+        '[{"component": "C1", "start_line": 0, "end_line": 0, "quote": "..."}], "rationale": "..."}], "summary": "..."}'
+    )
+
+
+# name -> (system prompt, schema, user-prompt builder, prompt version)
+VERIFY_PROMPTS = {
+    "strict": (VERIFY_SYSTEM, VERIFY_SCHEMA, verify_prompt, PROMPT_VERSION),
+    "behavioral": (VERIFY_SYSTEM_BEHAVIORAL, VERIFY_SCHEMA_BEHAVIORAL, verify_prompt_behavioral,
+                   BEHAVIORAL_PROMPT_VERSION),
+}
+
+
+# ---------------------------------------------------------------------------
 # Clause splitting of one compound claim (validated by claims.validate_split)
 # ---------------------------------------------------------------------------
 

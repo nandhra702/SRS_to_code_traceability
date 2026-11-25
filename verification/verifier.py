@@ -36,8 +36,8 @@ from ..store import Store
 from .claims import COMPOUND_CUE, split_claims, validate_split
 from .context import EvidenceContext, build_context, validate_reference
 from .llm import LLMClient, LLMError
-from .prompts import (CLAIMS_SCHEMA, CLAIMS_SYSTEM, PROMPT_VERSION, SPLIT_SCHEMA, SPLIT_SYSTEM,
-                      VERIFY_SCHEMA, VERIFY_SYSTEM, claims_prompt, split_prompt, verify_prompt)
+from .prompts import (CLAIMS_SCHEMA, CLAIMS_SYSTEM, SPLIT_SCHEMA, SPLIT_SYSTEM, VERIFY_PROMPTS,
+                      claims_prompt, split_prompt)
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +59,12 @@ class VerifierConfig:
     # "rules": sentences/list items only, no model call.
     # "llm": the model splits freely (can paraphrase or invent; not recommended).
     claim_splitting: str = "clauses"
+    # Judging prompt: "strict" (default, verify-v2.3) or "behavioral" (verify-v2.3-bc).
+    prompt: str = "strict"
+    # Write the verdicts onto the mapping's trace links (what the app shows).
+    # Experiments that store their verdicts under their own pipeline_version
+    # turn this off, so they never change a run's displayed link statuses.
+    update_link_status: bool = True
 
 
 def aggregate(verdicts: Sequence[str]) -> str:
@@ -79,6 +85,9 @@ class Verifier:
         self._resolver = resolver
         self._llm = llm
         self.config = config or VerifierConfig()
+        if self.config.prompt not in VERIFY_PROMPTS:
+            raise ValueError(f"unknown verifier prompt {self.config.prompt!r} (choose from {sorted(VERIFY_PROMPTS)})")
+        self.prompt_version = VERIFY_PROMPTS[self.config.prompt][3]
 
     # ------------------------------------------------------------------
     # Public
@@ -121,7 +130,7 @@ class Verifier:
             counts[r["status"]] = counts.get(r["status"], 0) + 1
         return {"document_id": document_id, "pipeline_version": pipeline_version,
                 "mapping_version": mapping_version, "model": self._llm.model,
-                "prompt_version": PROMPT_VERSION,
+                "prompt_version": self.prompt_version,
                 "claims_source": "gold" if gold_claims is not None else "llm",
                 "requirements": len(results), "status_counts": counts, "per_requirement": results}
 
@@ -221,7 +230,8 @@ class Verifier:
     def _judge(self, req: Dict[str, Any], claims: List[Dict[str, Any]],
                ctx: EvidenceContext) -> List[Dict[str, Any]]:
         texts = [c["text"] for c in claims]
-        reply = self._llm.chat_json(VERIFY_SYSTEM, verify_prompt(req, texts, ctx.text), VERIFY_SCHEMA)
+        system, schema, build, _ = VERIFY_PROMPTS[self.config.prompt]
+        reply = self._llm.chat_json(system, build(req, texts, ctx.text), schema)
         self._summary = str(reply.get("summary") or "")
         by_index: Dict[int, Dict[str, Any]] = {}
         for item in reply.get("claims", []):
@@ -255,8 +265,11 @@ class Verifier:
             if verdict == "supported" and not valid:
                 verdict = "insufficient_evidence"
                 rationale = "[downgraded: no valid code citation] " + rationale
-            judged.append({**claim, "verdict": verdict, "model_verdict": model_verdict,
-                           "evidence": valid, "rejected_evidence": rejected, "rationale": rationale})
+            entry = {**claim, "verdict": verdict, "model_verdict": model_verdict,
+                     "evidence": valid, "rejected_evidence": rejected, "rationale": rationale}
+            if item.get("code_behaviour"):
+                entry["code_behaviour"] = str(item["code_behaviour"])
+            judged.append(entry)
         return judged
 
     # ------------------------------------------------------------------
@@ -319,7 +332,7 @@ class Verifier:
         return rows
 
     def _persist(self, row: Dict[str, Any], link_rows: List[Dict[str, Any]], pipeline_version: str) -> None:
-        meta = {"model": self._llm.model, "prompt_version": PROMPT_VERSION, "pipeline_version": pipeline_version}
+        meta = {"model": self._llm.model, "prompt_version": self.prompt_version, "pipeline_version": pipeline_version}
         with self._store.transaction():
             self._store.add_verification({**row, **meta})
             for lr in link_rows:
@@ -327,4 +340,5 @@ class Verifier:
                     self._store.add_verification({"link_pk": lr["link_pk"], "req_pk": row["req_pk"],
                                                   "status": lr["status"], "evidence_refs": lr["evidence_refs"],
                                                   "rationale": f"requirement verdict: {row['status']}", **meta})
-                self._store.set_link_status(lr["link_pk"], lr["status"])
+                if self.config.update_link_status:
+                    self._store.set_link_status(lr["link_pk"], lr["status"])

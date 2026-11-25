@@ -287,8 +287,10 @@ def cmd_verify(args: argparse.Namespace, cfg: TraceabilityConfig):
                                              for c in r["claims"]]
                        for r in load_gold(args.gold)["requirements"] if r.get("claims")}
     ids = [i.strip() for i in args.requirements.split(",")] if args.requirements else None
-    llm = OllamaClient(args.model)
-    vc = VerifierConfig(claim_splitting=args.claims if args.claims != "gold" else "rules")
+    think = {"on": True, "off": False}.get(args.think)
+    llm = OllamaClient(args.model, args.ollama_host, think=think)
+    vc = VerifierConfig(claim_splitting=args.claims if args.claims != "gold" else "rules",
+                        prompt=args.prompt, update_link_status=not args.keep_link_status)
 
     def progress(i, n, r):
         print(f"[{i}/{n}] {r['requirement_id']:10s} {r['status']}", file=sys.stderr, flush=True)
@@ -300,8 +302,7 @@ def cmd_verify(args: argparse.Namespace, cfg: TraceabilityConfig):
             progress=progress)
     if args.json:
         return report
-    lines = [f"Verified {report['requirements']} requirement(s) of {report['document_id']} with "
-             f"{report['model']} ({report['prompt_version']}, claims: {report['claims_source']})",
+    lines = [f"Verified {report['requirements']} requirement(s) of {report['document_id']} with "             f"{report['model']} ({report['prompt_version']}, claims: {report['claims_source']})",
              "  " + ", ".join(f"{k}={v}" for k, v in sorted(report["status_counts"].items())), ""]
     for r in report["per_requirement"]:
         flags = " [incomplete requirement text]" if r.get("incomplete_requirement_text") else ""
@@ -463,6 +464,15 @@ def build_parser() -> argparse.ArgumentParser:
                             "validated clauses (default); rules: sentences/list items only; llm: model-split "
                             "(can invent); gold: the gold standard's claims (evaluation).")
     p_ver.add_argument("--gold", default=None, help="Gold mapping, for --claims gold.")
+    p_ver.add_argument("--prompt", default="strict", choices=["strict", "behavioral"],
+                       help="strict: verify-v2.3 (default); behavioral: verify-v2.3-bc, describe what the code "
+                            "does, then compare it with the claim.")
+    p_ver.add_argument("--think", default="default", choices=["default", "on", "off"],
+                       help="Thinking models (qwen3): on/off; default sends nothing.")
+    p_ver.add_argument("--ollama-host", default=None, help="Ollama URL (default: $OLLAMA_HOST or localhost:11434).")
+    p_ver.add_argument("--keep-link-status", action="store_true",
+                       help="Do not write verdicts onto the trace links (experiments: the run's displayed "
+                            "link statuses stay as they are; verdicts are stored under --pipeline-version only).")
     p_ver.add_argument("--mapping-version", default="mapping-v1")
     p_ver.add_argument("--pipeline-version", default="verification-v1")
     p_ver.add_argument("--json", action="store_true")
