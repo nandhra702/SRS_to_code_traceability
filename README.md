@@ -211,7 +211,7 @@ Recall was favoured, because the verifier filters out false positives.
 ## Verification (Phase 4): the "verifier agent"
 
 ```powershell
-ollama pull qwen2.5-coder:7b        # default model; override with --model or VERIFIER_MODEL
+ollama pull qwen2.5-coder:14b       # default model; override with --model or VERIFIER_MODEL
 & $py -m traceability.cli verify --document-id library-srs-v1.1
 & $py -m traceability.cli evaluate-verification --gold library_traceability_dataset\gold_standard\gold_standard_mapping.json --document-id library-srs-v1.1
 & $py -m traceability.cli show-verification FR-016 --document-id library-srs-v1.1
@@ -264,8 +264,9 @@ The `verification/` subpackage is the only stage that calls an LLM, which runs l
    - an uncited direct link becomes `not_supported_by_candidate`;
    - uncited supporting links stay `pending_verification`, because they were context.
 
-**Model:** `qwen2.5-coder:7b`.
-- It fits a 6 GB GPU with an 8k context.
+**Model:** `qwen2.5-coder:14b` (default since the verifier experiment, `TraceabilityApp/final_tests/exp_verifier/REPORT.md`).
+- On the four test projects, it raised macro-F1 from 0.27 to 0.38 and implemented recall from 30% to 55% compared with `qwen2.5-coder:7b`. False support rose from 3.1% to 9.4%, inside the 10% limit set before the experiment.
+- It needs about 10 GB of VRAM with an 8k context. On a smaller GPU, use `--model qwen2.5-coder:7b` (fits 6 GB), which is more cautious.
 - It's strong at reading code and following schemas.
 - It's a different model from DocAgent's docstring writer, so the verifier doesn't share its blind spots.
 

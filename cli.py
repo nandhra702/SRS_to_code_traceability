@@ -457,7 +457,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_ver = sub.add_parser("verify", help="Verifier agent: check mapped code against each requirement (LLM).")
     p_ver.add_argument("--document-id", required=True)
-    p_ver.add_argument("--model", default=None, help="Ollama model (default: $VERIFIER_MODEL or qwen2.5-coder:7b).")
+    p_ver.add_argument("--model", default=None, help="Ollama model (default: $VERIFIER_MODEL or qwen2.5-coder:14b).")
     p_ver.add_argument("--requirements", default=None, help="Comma-separated IDs (default: all).")
     p_ver.add_argument("--claims", default="clauses", choices=["clauses", "rules", "llm", "gold"],
                        help="clauses: the requirement's own sentences/list items, compound ones split into "

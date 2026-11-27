@@ -26,7 +26,9 @@ from typing import Any, Dict, Protocol
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL = "qwen2.5-coder:7b"
+# Chosen by the verifier experiment on the four test projects (TraceabilityApp
+# final_tests/exp_verifier). qwen2.5-coder:7b is the choice for GPUs under ~10 GB.
+DEFAULT_MODEL = "qwen2.5-coder:14b"
 
 
 class LLMError(RuntimeError):
